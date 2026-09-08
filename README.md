@@ -51,3 +51,25 @@ dotnet build src/Avacom.Lms.Student/Avacom.Lms.Student.csproj -f net10.0-android
 ```
 
 Ambas apps ofrecen modo demo si el backend no está disponible. El servidor esperado es DRF/ASGI en `0.0.0.0:8000`; el cliente consulta `/health/` y el núcleo incluye el cliente para `/ws/activities/{activity_id}/`.
+
+## Correr tu proyecto
+
+```powershell
+dotnet run --project src/Avacom.Lms.Ops/Avacom.Lms.Ops.csproj -f net10.0-windows10.0.19041.0
+dotnet run --project src/Avacom.Lms.Student/Avacom.Lms.Student.csproj -f net10.0-windows10.0.19041.0
+```
+
+## Construye el proyecto
+
+```powershell
+dotnet restore Avacom.Lms.slnx
+dotnet build src/Avacom.Lms.Ops/Avacom.Lms.Ops.csproj -f net10.0-windows10.0.19041.0 -c Release
+dotnet build src/Avacom.Lms.Student/Avacom.Lms.Student.csproj -f net10.0-windows10.0.19041.0 -c Release
+```
+
+Los ejecutables quedan en:
+
+```powershell
+.\src\Avacom.Lms.Ops\bin\Release\net10.0-windows10.0.19041.0\win-x64\Avacom.Lms.Ops.exe
+.\src\Avacom.Lms.Student\bin\Release\net10.0-windows10.0.19041.0\win-x64\Avacom.Lms.Student.exe
+```
