@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage x:Class="Avacom.Lms.Student.Pages.ConnectionPage" xmlns="http://schemas.microsoft.com/dotnet/2021/maui" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml" Shell.NavBarIsVisible="False">
+    <Grid><Grid.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#FDECEC" Offset="0"/><GradientStop Color="#E6F6FC" Offset="0.42"/><GradientStop Color="#FEF9E6" Offset="0.78"/><GradientStop Color="#F5E8F1" Offset="1"/></LinearGradientBrush></Grid.Background>
+        <ScrollView><Border WidthRequest="500" MaximumWidthRequest="500" Padding="38" Margin="24" VerticalOptions="Center" HorizontalOptions="Center"><Border.Shadow><Shadow Brush="#26000000" Offset="0,10" Radius="24"/></Border.Shadow><VerticalStackLayout Spacing="18">
+            <VerticalStackLayout HorizontalOptions="Center" Spacing="0"><Label Text="⬡" FontSize="52" TextColor="{StaticResource BrandRed}"/><Label Text="AVACOM" FontSize="28" FontAttributes="Bold" TextColor="{StaticResource BrandRed}"/><Label Text="LMS STUDENT" FontSize="12" CharacterSpacing="2" HorizontalTextAlignment="Center"/></VerticalStackLayout>
+            <Label Text="Conéctate a tu aula" FontSize="23" FontAttributes="Bold"/><Label Text="Escribe tu nombre y la dirección que aparece en la pantalla principal del profesor." Style="{StaticResource Muted}"/>
+            <Label Text="Tu nombre" FontAttributes="Bold"/><Entry x:Name="NameEntry" Text="Ethan Martínez" Placeholder="Nombre y apellido"/>
+            <Label Text="Dirección del aula" FontAttributes="Bold"/><Entry x:Name="ServerEntry" Text="http://192.168.1.10:8000" Keyboard="Url" Placeholder="192.168.1.10:8000"/>
+            <Border x:Name="StatusCard" BackgroundColor="#E6F6FC" Padding="13" StrokeThickness="0"><Label x:Name="StatusLabel" Text="●  Lista para comprobar la red local" TextColor="{StaticResource BrandBlue}"/></Border>
+            <Button x:Name="CheckButton" Text="Comprobar conexión" Style="{StaticResource DarkButton}" Clicked="OnCheck"/><Button Text="Entrar al aula" Style="{StaticResource PrimaryButton}" Clicked="OnEnter"/>
+            <Label Text="También puedes entrar en modo demo sin conexión." Style="{StaticResource Muted}" HorizontalTextAlignment="Center"/>
+        </VerticalStackLayout></Border></ScrollView>
+    </Grid>
+</ContentPage>

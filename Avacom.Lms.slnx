@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Avacom.Lms.Core/Avacom.Lms.Core.csproj" />
+    <Project Path="src/Avacom.Lms.Ops/Avacom.Lms.Ops.csproj" />
+    <Project Path="src/Avacom.Lms.Student/Avacom.Lms.Student.csproj" />
+    <Project Path="src/Avacom.Lms.Ui/Avacom.Lms.Ui.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Avacom.Lms.Core.Tests/Avacom.Lms.Core.Tests.csproj" />
+  </Folder>
+</Solution>

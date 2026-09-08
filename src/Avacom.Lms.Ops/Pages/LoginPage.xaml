@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage x:Class="Avacom.Lms.Ops.Pages.LoginPage" xmlns="http://schemas.microsoft.com/dotnet/2021/maui" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml" Shell.NavBarIsVisible="False">
+    <Grid>
+        <Grid.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#FDECEC" Offset="0"/><GradientStop Color="#E6F6FC" Offset="0.42"/><GradientStop Color="#FEF9E6" Offset="0.78"/><GradientStop Color="#F5E8F1" Offset="1"/></LinearGradientBrush></Grid.Background>
+        <Border WidthRequest="520" Padding="42" VerticalOptions="Center" HorizontalOptions="Center"><Border.Shadow><Shadow Brush="#26000000" Offset="0,10" Radius="24"/></Border.Shadow>
+            <VerticalStackLayout Spacing="20">
+                <VerticalStackLayout HorizontalOptions="Center" Spacing="0"><Label Text="⬡" FontSize="54" TextColor="{StaticResource BrandRed}" HorizontalTextAlignment="Center"/><Label Text="AVACOM" FontSize="29" FontAttributes="Bold" TextColor="{StaticResource BrandRed}"/><Label Text="LMS OPS" FontSize="13" CharacterSpacing="3" HorizontalTextAlignment="Center"/></VerticalStackLayout>
+                <Label Text="Nodo principal del aula" FontSize="20" FontAttributes="Bold"/><Label Text="Configura la conexión al servicio local. El estado siempre permanece visible para facilitar el soporte en la pantalla OPS." Style="{StaticResource Muted}"/>
+                <Label Text="Dirección del servidor" FontAttributes="Bold"/><Entry x:Name="ServerEntry" Text="http://127.0.0.1:8000" Keyboard="Url"/>
+                <Border x:Name="StatusCard" BackgroundColor="{StaticResource ErrorSoft}" Padding="14" StrokeThickness="0"><HorizontalStackLayout Spacing="10"><Label x:Name="StatusDot" Text="●" TextColor="{StaticResource BrandRed}"/><Label x:Name="StatusLabel" Text="Sin comprobar · modo demo disponible"/></HorizontalStackLayout></Border>
+                <Button x:Name="CheckButton" Text="Comprobar conexión" Style="{StaticResource DarkButton}" Clicked="OnCheckConnection"/><Button Text="EC   Iniciar como profesor" Style="{StaticResource PrimaryButton}" Clicked="OnEnterDemo"/>
+                <Label Text="El prototipo puede recorrerse sin backend. Al conectarse, usa /health/ y los contratos REST/WebSocket definidos." Style="{StaticResource Muted}" HorizontalTextAlignment="Center"/>
+            </VerticalStackLayout>
+        </Border>
+    </Grid>
+</ContentPage>

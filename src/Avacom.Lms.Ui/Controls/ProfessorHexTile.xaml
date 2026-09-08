@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="Avacom.Lms.Ui.Controls.ProfessorHexTile"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    HeightRequest="168"
+    WidthRequest="146"
+    ZIndex="1">
+    <Grid x:Name="TileRoot" SemanticProperties.Description="{Binding Text, Source={x:Reference Root}}">
+        <!-- Capas de sombra con la misma geometría: evitan el rectángulo que genera
+             VisualElement.Shadow en WinUI y conservan la silueta del hexágono. -->
+        <Path
+            Aspect="Fill"
+            Data="M 67,7 Q 80,0 93,7 L 147,39 Q 160,47 160,61 L 160,123 Q 160,137 147,145 L 93,177 Q 80,184 67,177 L 13,145 Q 0,137 0,123 L 0,61 Q 0,47 13,39 Z"
+            Fill="#08000000"
+            InputTransparent="True"
+            Scale="0.98"
+            TranslationY="10" />
+        <Path
+            Aspect="Fill"
+            Data="M 67,7 Q 80,0 93,7 L 147,39 Q 160,47 160,61 L 160,123 Q 160,137 147,145 L 93,177 Q 80,184 67,177 L 13,145 Q 0,137 0,123 L 0,61 Q 0,47 13,39 Z"
+            Fill="#0C000000"
+            InputTransparent="True"
+            Scale="0.985"
+            TranslationY="7" />
+        <Path
+            Aspect="Fill"
+            Data="M 67,7 Q 80,0 93,7 L 147,39 Q 160,47 160,61 L 160,123 Q 160,137 147,145 L 93,177 Q 80,184 67,177 L 13,145 Q 0,137 0,123 L 0,61 Q 0,47 13,39 Z"
+            Fill="#12000000"
+            InputTransparent="True"
+            Scale="0.99"
+            TranslationY="4" />
+        <Path
+            Aspect="Fill"
+            Data="M 67,7 Q 80,0 93,7 L 147,39 Q 160,47 160,61 L 160,123 Q 160,137 147,145 L 93,177 Q 80,184 67,177 L 13,145 Q 0,137 0,123 L 0,61 Q 0,47 13,39 Z"
+            Fill="White" />
+        <VerticalStackLayout
+            HorizontalOptions="Center"
+            Spacing="9"
+            VerticalOptions="Center">
+            <Path
+                x:Name="IconPath"
+                Aspect="Uniform"
+                Fill="{Binding AccentColor, Source={x:Reference Root}}"
+                HeightRequest="32"
+                WidthRequest="32" />
+            <Label
+                FontAttributes="Bold"
+                FontFamily="OpenSansSemibold"
+                FontSize="13"
+                HorizontalTextAlignment="Center"
+                LineBreakMode="WordWrap"
+                MaximumWidthRequest="118"
+                Text="{Binding Text, Source={x:Reference Root}}"
+                TextColor="#3F3F46" />
+        </VerticalStackLayout>
+        <Grid.GestureRecognizers>
+            <TapGestureRecognizer Tapped="OnTapped" />
+            <PointerGestureRecognizer PointerEntered="OnPointerEntered" PointerExited="OnPointerExited" />
+        </Grid.GestureRecognizers>
+    </Grid>
+</ContentView>

@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell x:Class="Avacom.Lms.Student.AppShell" xmlns="http://schemas.microsoft.com/dotnet/2021/maui" xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml" xmlns:pages="clr-namespace:Avacom.Lms.Student.Pages" Title="AVACOM LMS Student" FlyoutBehavior="Disabled" Shell.NavBarIsVisible="False"><ShellContent Title="Conexión" ContentTemplate="{DataTemplate pages:ConnectionPage}" Route="connection" /></Shell>

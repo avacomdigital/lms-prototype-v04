@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="Avacom.Lms.Ui.Controls.LearningResourceView"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+    <Grid RowDefinitions="Auto,*">
+        <Border BackgroundColor="#18181B" Padding="14,10" StrokeThickness="0">
+            <Grid ColumnDefinitions="*,Auto">
+                <Label Text="Contenido de aprendizaje" TextColor="White" FontAttributes="Bold" />
+                <Button Grid.Column="1" Text="Abrir fuera" Command="{Binding OpenExternalCommand, Source={x:Reference Root}}" BackgroundColor="Transparent" TextColor="White" />
+            </Grid>
+        </Border>
+        <WebView x:Name="Browser" Grid.Row="1" Source="{Binding Source, Source={x:Reference Root}}" Navigating="OnNavigating" />
+    </Grid>
+</ContentView>
+

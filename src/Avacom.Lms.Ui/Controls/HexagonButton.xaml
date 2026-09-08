@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView
+    x:Class="Avacom.Lms.Ui.Controls.HexagonButton"
+    x:Name="Root"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    HeightRequest="184"
+    WidthRequest="160">
+    <Grid>
+        <Path
+            Aspect="Fill"
+            Data="M 67,7 Q 80,0 93,7 L 147,39 Q 160,47 160,61 L 160,123 Q 160,137 147,145 L 93,177 Q 80,184 67,177 L 13,145 Q 0,137 0,123 L 0,61 Q 0,47 13,39 Z"
+            Fill="#08000000"
+            InputTransparent="True"
+            Scale="0.98"
+            TranslationY="10" />
+        <Path
+            Aspect="Fill"
+            Data="M 67,7 Q 80,0 93,7 L 147,39 Q 160,47 160,61 L 160,123 Q 160,137 147,145 L 93,177 Q 80,184 67,177 L 13,145 Q 0,137 0,123 L 0,61 Q 0,47 13,39 Z"
+            Fill="#0C000000"
+            InputTransparent="True"
+            Scale="0.985"
+            TranslationY="7" />
+        <Path
+            Aspect="Fill"
+            Data="M 67,7 Q 80,0 93,7 L 147,39 Q 160,47 160,61 L 160,123 Q 160,137 147,145 L 93,177 Q 80,184 67,177 L 13,145 Q 0,137 0,123 L 0,61 Q 0,47 13,39 Z"
+            Fill="#12000000"
+            InputTransparent="True"
+            Scale="0.99"
+            TranslationY="4" />
+        <Path
+            Aspect="Fill"
+            Data="M 67,7 Q 80,0 93,7 L 147,39 Q 160,47 160,61 L 160,123 Q 160,137 147,145 L 93,177 Q 80,184 67,177 L 13,145 Q 0,137 0,123 L 0,61 Q 0,47 13,39 Z"
+            Fill="White" />
+        <VerticalStackLayout
+            HorizontalOptions="Center"
+            VerticalOptions="Center"
+            Spacing="8">
+            <Label
+                FontAttributes="Bold"
+                FontSize="32"
+                HorizontalTextAlignment="Center"
+                Text="{Binding Icon, Source={x:Reference Root}}"
+                TextColor="{Binding AccentColor, Source={x:Reference Root}}" />
+            <Label
+                FontAttributes="Bold"
+                FontSize="15"
+                HorizontalTextAlignment="Center"
+                LineBreakMode="WordWrap"
+                MaximumWidthRequest="124"
+                Text="{Binding Text, Source={x:Reference Root}}"
+                TextColor="#3F3F46" />
+        </VerticalStackLayout>
+        <Grid.GestureRecognizers>
+            <TapGestureRecognizer Command="{Binding Command, Source={x:Reference Root}}" CommandParameter="{Binding CommandParameter, Source={x:Reference Root}}" Tapped="OnTapped" />
+        </Grid.GestureRecognizers>
+    </Grid>
+</ContentView>
