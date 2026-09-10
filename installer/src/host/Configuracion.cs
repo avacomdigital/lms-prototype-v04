@@ -94,7 +94,7 @@ internal static class Configuracion
         contenido.AppendLine();
         contenido.AppendLine("# AVACOM_CONTENIDO_ENLACE se deja SIN definir a proposito: el backend");
         contenido.AppendLine("# busca la nota de enlace de AVACOM Biblioteca donde la biblioteca la");
-        contenido.AppendLine("# publica (%ProgramData%\AVACOM\contenido\enlace.json). Definirla aqui");
+        contenido.AppendLine(@"# publica (%ProgramData%\AVACOM\contenido\enlace.json). Definirla aqui");
         contenido.AppendLine("# solo sirve para pruebas con el host de pruebas del repositorio.");
 
         File.WriteAllText(Rutas.ArchivoConfig, contenido.ToString(), new UTF8Encoding(false));

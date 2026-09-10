@@ -11,8 +11,8 @@ Lo que NO cambia respecto a `runserver`:
   * la misma configuracion (`avacom_lms.settings`, leida de variables de entorno),
   * la misma escucha: 0.0.0.0:8000.
 
-Este archivo pertenece al instalador, no al backend: vive en Runtime\ y no
-toca nada de Backend\.
+Este archivo pertenece al instalador, no al backend: vive en la carpeta
+Runtime de la instalacion y no toca nada de la carpeta Backend.
 """
 from __future__ import annotations
 

@@ -20,7 +20,23 @@ specs/
   001-maui-clients/      Especificación y criterios de aceptación
   conexion_LMS_Biblioteca.md  Cómo se conectó el LMS con AVACOM Biblioteca (spec-driven)
 spec-driven/             Constitución, plan y contrato de la frontera LMS ↔ Biblioteca
+installer/               Instalador de AVACOM OPS Master para Windows
 ```
+
+## Instalar en un equipo del aula
+
+Lo de arriba es para desarrollar. Para entregar el producto a un aula hay un
+instalador con asistente que no requiere teclado ni internet: incluye la
+aplicación, el backend, Python, Django, DRF y Waitress, y deja la API local
+como servicio de Windows en `0.0.0.0:8000`.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File installer\build\Build-Installer.ps1
+```
+
+El `.exe` queda en `installer/latest`. Detalles en
+[installer/README.md](installer/README.md) y decisiones en
+[spec-driven/08-instalador.md](spec-driven/08-instalador.md).
 
 ## Conexión con AVACOM Biblioteca
 

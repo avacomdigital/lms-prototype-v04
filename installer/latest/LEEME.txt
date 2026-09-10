@@ -1,0 +1,5 @@
+Aqui queda el instalador que produce installer/build/Build-Installer.ps1.
+
+El .exe no se versiona (supera el limite de 100 MB por archivo de GitHub): se
+publica como release asset. SHA256.txt, que si se versiona, permite verificar
+la descarga.

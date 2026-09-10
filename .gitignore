@@ -81,3 +81,14 @@ Desktop.ini
 backend/.venv/
 backend/db.sqlite3
 backend/**/__pycache__/
+
+# Instalador (installer/build/Build-Installer.ps1)
+# Contenido intermedio: la "version instalable" antes de empaquetarla.
+dist/
+# El .exe ronda los 94 MB, muy cerca del limite de 100 MB por archivo que
+# acepta un push a GitHub, y cada version añadiria otro tanto al historial.
+# Se publica como release asset; en el repositorio quedan el codigo que lo
+# reconstruye y SHA256.txt para verificar la descarga.
+installer/latest/*.exe
+# Arnes de prueba del asistente: se compila y se borra en cada verificacion.
+installer/build/PruebaAsistente.exe

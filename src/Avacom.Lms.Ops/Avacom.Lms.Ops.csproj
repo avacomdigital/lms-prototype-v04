@@ -58,6 +58,10 @@
 		<!-- Fuente única del aro del menú. Se mantiene en assets/main y se enlaza
 		     como recurso MAUI para no crear una copia divergente. -->
 		<MauiImage Include="..\..\assets\main\ColorHexagon.svg" Link="Resources\Images\colorhexagon.svg" />
+		<!-- Fuente única del símbolo de AVACOM, por la misma razón. Antes había
+		     en Resources\Images una versión dibujada a mano que no coincidía con
+		     la marca. Se enlaza con el nombre que ya usan las páginas. -->
+		<MauiImage Include="..\..\assets\avacom-symbol.svg" Link="Resources\Images\avacom_mark.svg" />
 		
 		<!-- Custom Fonts -->
 		<MauiFont Include="Resources\Fonts\*" />

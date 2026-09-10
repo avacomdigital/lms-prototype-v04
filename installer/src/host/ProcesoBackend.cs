@@ -37,6 +37,11 @@ internal sealed class ProcesoBackend : IDisposable
         }
         inicio.Environment["DJANGO_SETTINGS_MODULE"] = "avacom_lms.settings";
         inicio.Environment["PYTHONUNBUFFERED"] = "1";
+        // El producto se instala en Program Files, que es de solo lectura para
+        // quien da la clase. Sin esto, Python intentaria dejar ahi sus
+        // __pycache__ (el servicio corre como SYSTEM y podria), y la carpeta
+        // instalada dejaria de ser identica a lo que se empaqueto.
+        inicio.Environment["PYTHONDONTWRITEBYTECODE"] = "1";
         // Sin esto, un error con caracteres acentuados en la consola de Windows
         // se convierte en un UnicodeEncodeError que oculta el error real.
         inicio.Environment["PYTHONIOENCODING"] = "utf-8";

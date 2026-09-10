@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Ensambla el runtime de Python que AVACOM OPS Master distribuye con su backend.
 
@@ -67,14 +67,21 @@ if (-not (Test-Path $pythonExe)) {
     throw "El paquete embeddable no trajo python.exe en $Destination."
 }
 
-# El paquete embeddable ignora site-packages salvo que se declare en el ._pth.
-# Sin esto, Django no se importa.
+# El ._pth es lo unico que define sys.path en el paquete embeddable: con el
+# presente, Python arranca aislado y NO añade el directorio del script, ni
+# site-packages, ni PYTHONPATH. Por eso las tres rutas se declaran aqui.
+#
+# Las rutas relativas se resuelven contra la carpeta del propio ._pth, que en
+# la instalacion es <instalacion>\Runtime\Python. De ahi que el backend sea
+# ..\..\Backend: asi `python manage.py migrate` importa avacom_lms sin
+# depender del directorio de trabajo ni de variables de entorno.
 $pth = Join-Path $Destination "python$corto._pth"
 if (-not (Test-Path $pth)) { throw "No se encontro $pth." }
 @(
     "python$corto.zip"
     '.'
     'Lib\site-packages'
+    '..\..\Backend'
     ''
     '# AVACOM OPS Master: site.main() habilita site-packages en el runtime embebido.'
     'import site'

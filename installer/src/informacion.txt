@@ -1,0 +1,44 @@
+﻿AVACOM OPS Master
+
+This wizard will install AVACOM OPS Master
+and its required local services on this computer.
+
+------------------------------------------------------------------------
+
+AVACOM LMS 2.0 · AVACOM OPS Master
+
+Qué queda instalado en este equipo
+
+    · AVACOM OPS Master, la aplicación del profesor.
+    · La API local del aula, que se instala como un servicio de Windows y
+      arranca sola cada vez que se enciende el equipo.
+
+Todo lo que la API necesita para funcionar viaja dentro de este instalador.
+No hace falta internet, ni instalar nada más, ni escribir ningún comando.
+
+
+Qué NO cambia
+
+    · Los cursos y el contenido siguen siendo de AVACOM Biblioteca. AVACOM
+      OPS Master los consulta, no los administra.
+    · Si AVACOM Biblioteca ya está en este equipo, no se modifica: cada
+      producto tiene su carpeta, su servicio, sus datos y sus registros.
+    · Las notas, el progreso y los intentos de los estudiantes se guardan
+      fuera de la carpeta del programa y sobreviven a cualquier
+      reinstalación o actualización.
+
+
+El aula
+
+Las tabletas de los estudiantes se conectan a este equipo por la red del
+aula. Para que puedan hacerlo, la instalación autoriza el puerto de la API
+local en Windows Defender Firewall, y solo en redes privadas.
+
+
+Licencia y uso
+
+Software de AVACOM para uso educativo en las instituciones autorizadas.
+Al continuar, aceptas instalar y ejecutar estos componentes en este equipo.
+
+Este prototipo de aula funciona en una red cerrada y sin autenticación de
+usuario: instálalo solo en equipos de la institución y en su red local.
