@@ -7,5 +7,7 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("dashboard", typeof(Pages.DashboardPage));
         Routing.RegisterRoute("course-editor", typeof(Pages.CourseEditorPage));
         Routing.RegisterRoute("activity-monitor", typeof(Pages.ActivityMonitorPage));
+        Routing.RegisterRoute("asignaturas", typeof(Pages.AsignaturasPage));
+        Routing.RegisterRoute("curso-biblioteca", typeof(Pages.CursoBibliotecaPage));
     }
 }

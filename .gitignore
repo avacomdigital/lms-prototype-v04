@@ -76,3 +76,8 @@ Desktop.ini
 *.temp
 *.log
 
+
+# Backend Django (AVACOM LMS)
+backend/.venv/
+backend/db.sqlite3
+backend/**/__pycache__/

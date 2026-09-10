@@ -9,7 +9,9 @@ Crear dos clientes nativos que funcionen dentro de la LAN del aula y que puedan 
 - OPS se distribuye para Windows y muestra de forma permanente el estado de la conexión.
 - Student se distribuye para Windows y Android y solicita nombre y dirección del aula.
 - El núcleo normaliza direcciones HTTP y deriva la dirección WebSocket sin usar servicios externos.
-- El demo contiene `Álgebra Octavo B`, tres unidades/lecciones, dos ítems por lección y un quiz final de cinco preguntas sobre México.
+- Este debe mostrar los cursos disponibles en AVACOM Biblioteca en el formato de conexión
+- La idea es que los cursos disponibles estén desde AVACOM Biblioteca y en este backend se registre en rl progreso
+- Se entiende por progreso todas las notas, actividades realizadas por los estudiantes, visor del contenido y otros registros
 - OPS permite explorar la creación de un curso y muestra el consolidado de actividad por estudiante.
 - El menú principal docente presenta once hexágonos: Reportes, Asignaturas, Comunicación, Asistencia, Enciclopedia, Perfil, Progreso, Historial, Calendario, Clase de hoy y Estudiantes.
 - Los once hexágonos conservan la retícula del HTML de referencia, sus iconos vectoriales, las etiquetas nativas y la paleta AVACOM.

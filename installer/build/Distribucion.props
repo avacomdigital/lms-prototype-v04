@@ -1,0 +1,33 @@
+<Project>
+  <!--
+    Propiedades que SOLO usa la compilacion del instalador.
+
+    Se inyectan con -p:CustomBeforeMicrosoftCommonProps=<ruta a este archivo>
+    para no tocar ningun .csproj del repositorio: la constitucion prohibe
+    cambiar la arquitectura del software y un instalador no es razon para
+    hacerlo.
+
+    Dos motivos para que las condiciones sean tan estrechas:
+
+    1. Avacom.Lms.Ui es multi-destino (android + windows). Si se pasa
+       -r win-x64 en la linea de comandos, NuGet intenta restaurar el runtime
+       pack Mono de win-x64 para el destino Android y falla (NU1102). Aqui el
+       RID se fija solo en los destinos de Windows.
+
+    2. WindowsAppSDKSelfContained tiene que aplicarse al ejecutable y a nada
+       mas. Si tambien lo hereda la libreria compartida, las dos copian el
+       mismo contenido nativo del Windows App SDK al publicar y la compilacion
+       muere con NETSDK1152 (rutas de salida duplicadas).
+  -->
+
+  <PropertyGroup Condition="$(TargetFramework.Contains('windows'))">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="$(TargetFramework.Contains('windows')) And '$(MSBuildProjectName)' == 'Avacom.Lms.Ops'">
+    <!-- El .NET runtime y el Windows App SDK viajan dentro de la aplicacion:
+         instalacion offline y sin prerrequisitos en el equipo del aula. -->
+    <SelfContained>true</SelfContained>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+  </PropertyGroup>
+</Project>

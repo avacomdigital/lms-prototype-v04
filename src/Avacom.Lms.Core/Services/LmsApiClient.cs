@@ -38,7 +38,7 @@ public sealed class LmsApiClient(HttpClient httpClient) : ILmsApiClient
     public async Task SubmitAnswerAsync(Uri baseUri, string attemptId, string questionId, string optionId, CancellationToken cancellationToken = default)
     {
         var payload = new { attempt_id = attemptId, question_id = questionId, option_id = optionId, client_event_id = Guid.NewGuid().ToString("N") };
-        using var response = await httpClient.PostAsJsonAsync(new Uri(baseUri, "api/quiz-attempts/answer/"), payload, cancellationToken);
+        using var response = await httpClient.PostAsync(new Uri(baseUri, "api/quiz-attempts/answer/"), new StringContent(System.Text.Json.JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json"), cancellationToken);
         response.EnsureSuccessStatusCode();
     }
 }

@@ -8,15 +8,34 @@ Prototipo nativo en C# para el aula AVACOM. La solución contiene dos aplicacion
 ## Estructura
 
 ```text
+backend/                 Backend Django REST Framework: cliente único hacia AVACOM Biblioteca + expediente del estudiante
 src/
-  Avacom.Lms.Core/       Dominio, demo, HTTP y WebSocket
-  Avacom.Lms.Ui/         Controles MAUI compartidos
-  Avacom.Lms.Ops/        Cliente profesor (Windows)
-  Avacom.Lms.Student/    Cliente estudiante (Windows + Android)
+  Avacom.Lms.Core/       Dominio, demo, HTTP, WebSocket y la fachada BibliotecaDeContenido
+  Avacom.Lms.Ui/         Controles MAUI compartidos (hexágonos, CourseContentView)
+  Avacom.Lms.Ops/        Cliente profesor (Windows): Asignaturas de la biblioteca + consolidado
+  Avacom.Lms.Student/    Cliente estudiante (Windows + Android): Asignaturas + curso con progreso
 tests/
   Avacom.Lms.Core.Tests/ Pruebas de contratos del núcleo
 specs/
   001-maui-clients/      Especificación y criterios de aceptación
+  conexion_LMS_Biblioteca.md  Cómo se conectó el LMS con AVACOM Biblioteca (spec-driven)
+spec-driven/             Constitución, plan y contrato de la frontera LMS ↔ Biblioteca
+```
+
+## Conexión con AVACOM Biblioteca
+
+Los cursos **no viven en el LMS**: los ofrece AVACOM Biblioteca en el equipo maestro
+(API local en loopback, puerto efímero, ficha en `%ProgramData%\AVACOM\contenido\enlace.json`).
+El backend de `backend/` es el único que habla con ella; OPS y Student hablan con el backend.
+El LMS guarda únicamente el **expediente** (inscripción, aperturas del visor, progreso, intentos, notas).
+Detalles en [specs/conexion_LMS_Biblioteca.md](specs/conexion_LMS_Biblioteca.md) y [backend/README.md](backend/README.md).
+
+```powershell
+cd backend
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+.venv\Scripts\python manage.py migrate
+.venv\Scripts\python manage.py runserver 0.0.0.0:8000
 ```
 
 ## Compilar
@@ -50,7 +69,7 @@ Para Android, con un emulador o dispositivo configurado:
 dotnet build src/Avacom.Lms.Student/Avacom.Lms.Student.csproj -f net10.0-android
 ```
 
-Ambas apps ofrecen modo demo si el backend no está disponible. El servidor esperado es DRF/ASGI en `0.0.0.0:8000`; el cliente consulta `/health/` y el núcleo incluye el cliente para `/ws/activities/{activity_id}/`.
+Ambas apps ofrecen modo demo si el backend no está disponible. El servidor es el backend Django/DRF de `backend/` en `0.0.0.0:8000`; el cliente consulta `/health/`, pinta **Asignaturas** con los cursos de AVACOM Biblioteca y registra el progreso del estudiante. El núcleo incluye además el cliente para `/ws/activities/{activity_id}/`.
 
 ## Correr tu proyecto
 

@@ -1,0 +1,20 @@
+# Dependencias del backend de AVACOM OPS Master tal como se distribuyen.
+#
+# Las dos primeras son las de backend/requirements.txt y no se cambian aqui:
+# si el backend sube de version, este archivo se regenera desde alli.
+# Las demas son las que el instalador necesita para ejecutar el backend en
+# Windows sin pedirle nada al usuario.
+Django==5.2.3
+djangorestframework==3.16.1
+
+# Transitivas de Django/DRF, fijadas para que la instalacion sea reproducible
+# y completamente offline en el equipo destino.
+asgiref==3.12.1
+sqlparse==0.6.0
+
+# Base de datos de zonas horarias: Windows no trae la de IANA y el backend usa
+# TIME_ZONE = "America/Bogota" con USE_TZ = True.
+tzdata==2026.3
+
+# Servidor WSGI de produccion para Windows (sustituye a manage.py runserver).
+waitress==3.0.2

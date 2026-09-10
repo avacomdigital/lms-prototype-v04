@@ -9,8 +9,8 @@ public partial class DashboardPage : ContentPage
     private void OnPageSizeChanged(object? sender, EventArgs e)
     {
         if (Width <= 0 || Height <= 0) return;
-        var widthScale = Math.Max(0.55, (Width - 32) / 760d);
-        var heightScale = Math.Max(0.55, (Height - 155) / 700d);
+        var widthScale = Math.Max(0.55, (Width - 32) / 780d);
+        var heightScale = Math.Max(0.55, (Height - 155) / 714d);
         MenuStage.Scale = Math.Min(1, Math.Min(widthScale, heightScale));
     }
 
@@ -20,7 +20,7 @@ public partial class DashboardPage : ContentPage
         switch (tile.Text)
         {
             case "Asignaturas":
-                await Shell.Current.GoToAsync("course-editor");
+                await Shell.Current.GoToAsync("asignaturas");
                 break;
             case "Clase de hoy":
             case "Reportes":
@@ -32,7 +32,7 @@ public partial class DashboardPage : ContentPage
         }
     }
 
-    private async void OnAssignmentsClicked(object? sender, EventArgs e) => await Shell.Current.GoToAsync("course-editor");
+    private async void OnAssignmentsClicked(object? sender, EventArgs e) => await Shell.Current.GoToAsync("asignaturas");
     private async void OnClassTodayClicked(object? sender, EventArgs e) => await Shell.Current.GoToAsync("activity-monitor");
     private async void OnLogoutClicked(object? sender, EventArgs e) => await Shell.Current.GoToAsync("//login");
 }

@@ -5,8 +5,16 @@ Las dependencias apuntan hacia el núcleo:
 ```text
 AVACOM LMS OPS ─────┐
                     ├── AVACOM LMS UI ── AVACOM LMS Core
-AVACOM LMS Student ─┘                 └── HTTP / WebSocket ── DRF :8000
+AVACOM LMS Student ─┘                 └── HTTP / WebSocket ── backend Django/DRF :8000 (backend/)
+                                                                   │ loopback · puerto efímero · X-Avacom-Ficha
+                                                                   ▼
+                                                          AVACOM Biblioteca (dueña de los cursos)
 ```
+
+La frontera es la del artículo 14 de `spec-driven/01-constitucion.md`: el backend no tiene tablas de curso;
+resuelve la estructura en vivo contra la biblioteca (`backend/biblioteca/cliente.py`, el único cliente) y
+guarda sólo el expediente (`backend/expediente/`). Los clientes MAUI usan la fachada
+`BibliotecaDeContenido` del núcleo y el control compartido `CourseContentView` para reproducir el curso.
 
 `Avacom.Lms.Core` no conoce MAUI: define modelos, datos demo y contratos de comunicación. `Avacom.Lms.Ui` aporta componentes reutilizables (`HexagonButton` y `LearningResourceView`). Cada ejecutable conserva sus pantallas y navegación porque sus responsabilidades y plataformas son distintas.
 

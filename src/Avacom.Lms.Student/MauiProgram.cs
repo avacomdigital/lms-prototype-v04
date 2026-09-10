@@ -6,6 +6,7 @@ public static class MauiProgram
 {
 	public static MauiApp CreateMauiApp()
 	{
+		Avacom.Lms.Core.Services.RegistroDeFallos.Observar("student");
 		var builder = MauiApp.CreateBuilder();
 		builder
 			.UseMauiApp<App>()
