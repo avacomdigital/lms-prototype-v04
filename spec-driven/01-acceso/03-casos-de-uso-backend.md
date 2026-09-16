@@ -4,11 +4,12 @@
 |---|---|
 | Para qué sirve | Entender el código ya escrito en `backend/acceso/`: qué hace cada operación, por dónde viaja la información y qué pantalla del frontend la va a usar |
 | Para quién | Programadores que van a tocar el módulo **y** personas no técnicas que necesitan saber qué hace el sistema |
-| Alcance | 35 casos de uso · 27 rutas HTTP · 22 serializers · 17 tablas · 2 migraciones · 1 comando de consola |
-| Documentos hermanos | [01 · Modelado de datos](01-modelado-datos.md) · [02 · Endpoints](02-Endpoints.md) · [Presentación](../../specs/presentaciones/acceso.html) · [Pantallas MAUI](../../specs/presentaciones/acceso-sugerencias.html) |
-| Estado del código | Implementado y probado: 97 pruebas en verde (65 de este módulo) |
+| Alcance | 39 casos de uso · 32 rutas HTTP · 24 serializers · 18 tablas · 4 migraciones · 2 comandos de consola |
+| Alineación | MOD-001 · Identity & Access del Documento Maestro. El cruce función a función está en [04 · Lineamientos](04-Lineamientos-Al-Documento-Maestro.md) |
+| Documentos hermanos | [01 · Modelado de datos](01-modelado-datos.md) · [02 · Endpoints](02-Endpoints.md) · [Pantallas MAUI](../../specs/presentaciones/acceso-sugerencias.html) |
+| Estado del código | Implementado y probado: 118 pruebas en verde (86 de este módulo) |
 
-> **Cómo leer este documento.** Las secciones 1 a 3 explican el mecanismo general con una sola analogía y un ejemplo completo. La sección 4 recorre los 35 casos de uso uno por uno. Si sólo va a leer una cosa, lea la sección 3: el viaje de una petición. Si no programa, puede saltarse los bloques de código; el texto se entiende sin ellos.
+> **Cómo leer este documento.** Las secciones 1 a 3 explican el mecanismo general con una sola analogía y un ejemplo completo. La sección 4 recorre los 39 casos de uso uno por uno. Si sólo va a leer una cosa, lea la sección 3: el viaje de una petición. Si no programa, puede saltarse los bloques de código; el texto se entiende sin ellos.
 
 ---
 
@@ -16,15 +17,13 @@
 
 ### 1.1 · Qué es un «caso de uso»
 
-Un caso de uso es **una cosa completa que alguien quiere hacer**: «crear un estudiante», «entrar al sistema», «restablecer un PIN», «autorizar una tableta para el examen». No es un botón ni una pantalla ni una tabla: es la operación entera, con todas sus reglas y todas sus consecuencias.
+Un caso de uso es **una cosa completa que alguien quiere hacer**: «crear un estudiante», «entrar al sistema», «importar el padrón», «restablecer un PIN», «autorizar una tableta para el examen». No es un botón ni una pantalla ni una tabla: es la operación entera, con todas sus reglas y todas sus consecuencias.
 
-En este módulo cada caso de uso es una clase de Python con un único método `ejecutar(...)`. Eso tiene una ventaja muy concreta: **para saber todo lo que pasa cuando el profesor restablece un PIN, sólo hay que leer una clase**, no perseguir el código por seis archivos.
+En este módulo cada caso de uso es una clase de Python con un único método `ejecutar(...)`. **Para saber todo lo que pasa cuando el profesor restablece un PIN, sólo hay que leer una clase.** El Documento Maestro las llama *funciones* (FUN-001 a FUN-011); aquí cada función tiene su caso de uso, y en la cabecera de `casos_uso.py` está la correspondencia.
 
 ### 1.2 · La analogía de la oficina
 
-Piense en una oficina de secretaría académica:
-
-| En la oficina | En el código | Dónde vive |
+| En la oficina de secretaría académica | En el código | Dónde vive |
 |---|---|---|
 | La **ventanilla** donde el público entrega formularios y recibe respuestas | La capa HTTP: vistas (APIViews) y serializers | `acceso/interfaces/` |
 | El **formulario en papel**, que se revisa antes de aceptarlo: ¿está firmado? ¿tiene todos los campos? | Los serializers | `acceso/interfaces/serializers.py` |
@@ -32,26 +31,26 @@ Piense en una oficina de secretaría académica:
 | El **reglamento** de la institución que el funcionario debe respetar | El dominio: políticas, entidades y valores | `acceso/dominio/` |
 | El **archivo** donde se guardan y se buscan los expedientes | Los repositorios | `acceso/infraestructura/repositorios.py` |
 | La **carpeta** de una gestión, que se entrega completa o no se entrega | La Unidad de Trabajo | `acceso/infraestructura/unidad_trabajo.py` |
-| La **caja fuerte** y la trituradora: lo que cifra, lo que sella | Argon2id, AES-GCM, HMAC, JWT | `acceso/infraestructura/seguridad.py` |
+| La **caja fuerte** y el sello: lo que cifra, lo que firma | Argon2id, AES-GCM, HMAC, JWT | `acceso/infraestructura/seguridad.py` |
 | Los **muebles y estanterías** del archivo | Las tablas de la base de datos | `acceso/models.py` |
-| El día que se **montó la oficina** por primera vez | Las migraciones | `acceso/migrations/` |
-| La **puerta de servicio** para el personal técnico, sin pasar por ventanilla | El comando de consola | `acceso/management/commands/` |
+| El día que se **montó la oficina** y las **reformas** posteriores | Las migraciones | `acceso/migrations/` |
+| La **puerta de servicio** para el personal técnico, sin pasar por ventanilla | Los comandos de consola | `acceso/management/commands/` |
 
-La regla que sostiene todo el diseño: **el funcionario no sabe cómo es el archivo por dentro**. Pide «tráeme el expediente de Juan» y alguien se lo trae. Hoy el archivo son carpetas de papel (SQLite con Django); mañana puede ser un sistema digital (PostgreSQL con SQLAlchemy) y el funcionario trabaja igual, sin reentrenarse.
+La regla que sostiene todo el diseño: **el funcionario no sabe cómo es el archivo por dentro**. Pide «tráeme el expediente de Juan» y alguien se lo trae. Hoy el archivo es SQLite con Django; mañana puede ser PostgreSQL con SQLAlchemy y el funcionario trabaja igual.
 
 ### 1.3 · Las seis carpetas del módulo
 
 ```
 backend/acceso/
 ├── dominio/              EL REGLAMENTO. No sabe que existe internet ni bases de datos.
-│   ├── valores.py          Tipos con reglas propias: un país es "CO", no "Colombia"
-│   ├── entidades.py        Las cosas del negocio: Usuario, Credencial, Sesión...
+│   ├── valores.py          Tipos con reglas propias: alcances, menús, niveles educativos, tipos de credencial, motivos de cierre
+│   ├── entidades.py        Las cosas del negocio: Usuario, Persona, Identificador, Credencial, UsuarioRol, Sesión...
 │   ├── politicas.py        Las tres decisiones difíciles: ¿puede? ¿es buena la clave? ¿está bloqueado?
-│   ├── plantillas.py       Los roles y permisos de fábrica
+│   ├── plantillas.py       Los cinco roles, los 28 permisos identity.* y las políticas de fábrica
 │   └── errores.py          Los "no" posibles, cada uno con su motivo
 │
 ├── aplicacion/           LOS FUNCIONARIOS.
-│   ├── casos_uso.py        Las 35 operaciones. Este es el corazón del módulo
+│   ├── casos_uso.py        Las 39 operaciones. Este es el corazón del módulo
 │   └── puertos.py          Lo que los funcionarios necesitan pedir (sin decir a quién)
 │
 ├── infraestructura/      QUIEN HACE EL TRABAJO SUCIO.
@@ -65,49 +64,41 @@ backend/acceso/
 │   ├── serializers.py      Revisan la forma del formulario
 │   ├── autenticacion.py    Lee el pase de entrada (JWT) en cada petición
 │   ├── permisos.py         ¿Esta ruta exige sesión?
-│   └── urls.py             El directorio: qué dirección lleva a qué ventanilla
+│   └── urls.py             El directorio: qué dirección lleva a qué ventanilla (32 rutas)
 │
 ├── management/commands/  LA PUERTA DE SERVICIO.
-│   └── acceso_instalar.py  Instalar el equipo desde la consola
+│   ├── acceso_instalar.py  Instalar el equipo desde la consola
+│   └── acceso_importar.py  Cargar el padrón desde un archivo (FUN-003)
 │
-├── migrations/           EL MONTAJE DE LA OFICINA.
-│   ├── 0001_initial.py     Crea las 17 tablas
-│   └── 0002_plantillas.py  Siembra permisos y los tres roles de fábrica
+├── migrations/           EL MONTAJE Y LAS REFORMAS.
+│   ├── 0001_initial.py            Crea las tablas originales
+│   ├── 0002_plantillas.py         Siembra permisos y roles de fábrica
+│   ├── 0003_alineacion_mod001.py  Reforma: asignaciones de rol, niveles, avatar, inactividad, emisor...
+│   └── 0004_datos_mod001.py       Renombra permisos a identity.*, siembra Reportes y Técnico, migra los datos
 │
-├── models.py             LAS ESTANTERÍAS: la forma de las tablas
-└── tests/                LAS PRUEBAS: 65 comprobaciones automáticas
+├── models.py             LAS ESTANTERÍAS: la forma de las 18 tablas m01_*
+└── tests/                LAS PRUEBAS: 86 comprobaciones automáticas
 ```
 
 ### 1.4 · La regla de oro del diseño
 
-**El reglamento no puede depender de la tecnología.** Ni `dominio/` ni `aplicacion/` mencionan Django, Django REST Framework, FastAPI, SQLAlchemy ni Pydantic. No es una intención: hay una prueba automática que recorre esos archivos y **falla** si alguien escribe uno de esos nombres.
-
-```python
-# acceso/tests/test_arquitectura.py
-def test_dominio_y_aplicacion_no_importan_frameworks(self):
-    ...
-    self.assertEqual(violaciones, [])
-```
-
-Por qué importa, en términos de negocio: la regla «un PIN no puede ser 123456» y la regla «un profesor sólo administra a sus estudiantes» son de AVACOM, no de Django. Si algún día el backend cambia de tecnología, esas reglas y sus pruebas sobreviven intactas. Sólo se reescribe la ventanilla y el archivo.
+**El reglamento no puede depender de la tecnología.** Ni `dominio/` ni `aplicacion/` mencionan Django, DRF, FastAPI, SQLAlchemy ni Pydantic. Hay una prueba automática que recorre esos archivos y **falla** si alguien escribe uno de esos nombres. Por qué importa: la regla «una persona tiene una sola sesión abierta» es de AVACOM, no de Django. Si el backend cambia de tecnología, esa regla y su prueba sobreviven intactas.
 
 ---
 
-## 2 · Los tres conceptos que aparecen en todos los casos de uso
+## 2 · Los cuatro conceptos que aparecen en todos los casos de uso
 
-Antes de recorrer las operaciones conviene conocer tres palabras que se repiten.
+### 2.1 · `Principal`: quién está actuando, y con qué rol
 
-### 2.1 · `Principal`: quién está actuando
-
-Cuando alguien inicia sesión recibe un **pase de entrada** (un JWT). En cada petición posterior lo presenta, y el backend lo convierte en un objeto llamado `Principal`: la ficha de quien actúa.
+Cuando alguien inicia sesión recibe un **pase de entrada** (un JWT). En cada petición posterior lo presenta, y el backend lo convierte en un objeto llamado `Principal`.
 
 ```python
 Principal(
     usuario_id="a1b2…",        # quién es
     organizacion_id="c3d4…",   # de qué colegio
-    rol_codigo="TEACHER",      # qué rol tiene
+    rol_codigo="TEACHER",      # con qué rol ESTÁ TRABAJANDO en esta sesión (BR-021)
     menu="teacher",            # qué menú le toca en la app
-    nivel=2,                   # 1 estudiante · 2 docente · 3 administración
+    nivel=2,                   # 1 alumno · 2 personal · 3 administración
     sesion_id="e5f6…",         # cuál de sus sesiones es esta
     clase_sesion=NORMAL,       # NORMAL o TEMPORAL (pase de examen)
     debe_cambiar_credencial=False,
@@ -116,19 +107,24 @@ Principal(
 )
 ```
 
-Casi todos los casos de uso reciben un `Principal` como primer argumento. Los que no lo reciben son justamente los que ocurren **antes** de tener sesión: consultar la configuración, instalar, registrar la tableta, autenticarse y canjear un pase de examen.
+Un detalle nuevo tras la alineación: una persona puede tener **varios roles** (la profesora que además es coordinadora), pero en cada sesión trabaja con **uno solo**, el que eligió al entrar. El `Principal` lleva ese rol efectivo, no la lista.
 
 ### 2.2 · Permiso y alcance: «qué» y «sobre quién»
 
-Un permiso solo no dice nada útil. `student.progress.read` (ver el progreso de un estudiante) significa cosas distintas según quién lo tenga:
+Un permiso solo no dice nada útil. `identity.password.reset` (restablecer la clave de alguien) significa cosas distintas según quién lo tenga:
 
-| Alcance | Significa | Ejemplo |
-|---|---|---|
-| `SELF` | Sólo sobre sí mismo | Juan ve **su** progreso |
-| `ASSIGNED_GROUPS` | Sobre los estudiantes de sus grupos | La profesora ve el progreso de **su** curso |
-| `ORGANIZATION` | Sobre todo el colegio | El rector ve el de **cualquiera** |
+| Alcance | Maestro | Significa | Ejemplo |
+|---|---|---|---|
+| `SELF` | propio | Sólo sobre sí mismo | Juan cambia **su** clave |
+| `ASSIGNED_GROUPS` | grupo | Sobre los estudiantes de sus grupos | La profesora restablece el PIN de **su** curso |
+| `LEVEL` | nivel | Sobre todos los grupos de un nivel educativo | La coordinadora de secundaria, sobre **toda secundaria** |
+| `ORGANIZATION` | instalación | Sobre todo el colegio | El rector, sobre **cualquiera** |
 
-La pregunta «¿es Juan mi estudiante?» **no se guarda en ninguna tabla de permisos**: se calcula. Existe un grupo donde yo soy docente vigente y Juan es miembro vigente, luego Juan es mi estudiante. Esto es lo que evita la tabla gigantesca de permisos por contexto que se descartó en el diseño.
+La pregunta «¿es Juan mi estudiante?» **no se guarda en ninguna tabla de permisos**: se calcula. Existe un grupo donde yo soy docente vigente (o que me abre la asignación de mi rol) y Juan es miembro vigente, luego Juan es mi estudiante.
+
+**La asignación acota al rol.** Si a alguien se le asigna el rol Administrador con alcance «nivel secundaria», sus permisos de organización valen sólo dentro de secundaria. Es la mitad de la regla BR-021 del Maestro que más trabajo ahorra: no hace falta crear un rol distinto por cada coordinación.
+
+**Fuera de alcance se responde «acceso denegado» (403), nunca «no existe» (404).** Es una regla explícita del Maestro. El 404 queda para lo que de verdad no existe.
 
 ### 2.3 · La Unidad de Trabajo: todo o nada
 
@@ -139,26 +135,35 @@ with self.s.uow() as uow:
     ...
 ```
 
-Esa línea abre una **carpeta de gestión**. Todo lo que se escriba dentro se guarda de golpe al final, o no se guarda nada si algo falla. Crear un estudiante son siete escrituras (cuenta, datos cifrados, identificadores, credencial, inscripción al grupo, auditoría y aviso de sincronización); si la quinta falla, no queda medio estudiante en la base.
+Esa línea abre una **carpeta de gestión**. Todo lo que se escriba dentro se guarda de golpe al final, o no se guarda nada si algo falla. Crear un estudiante son ocho escrituras (cuenta, datos cifrados, identificadores, asignación de rol, inscripción al grupo, credencial, auditoría y aviso de sincronización); si la sexta falla, no queda medio estudiante.
 
-Hay **una excepción deliberada**: `AutenticarUsuario` y `CanjearAccesoTemporal` usan `ejecutar_registrando(...)`, que confirma la transacción **aunque la operación termine en error**. La razón: si alguien falla la clave cinco veces, esos cinco fallos tienen que quedar escritos, porque son justamente lo que dispara el bloqueo. Si se deshicieran junto con el error, nadie se bloquearía nunca.
+Hay **una excepción deliberada**: `AutenticarUsuario`, `CanjearAccesoTemporal` y `ResolverPrincipal` usan `ejecutar_registrando(...)`, que confirma la transacción **aunque la operación termine en error**. Si alguien falla la clave cinco veces, esos fallos tienen que quedar escritos, porque son lo que dispara el bloqueo. Y si una sesión se cierra por inactividad, ese cierre debe quedar registrado aunque la respuesta sea «vuelva a entrar».
+
+### 2.4 · Sesión única: una persona, una sesión
+
+La regla más restrictiva de MOD-001. Cuando alguien abre sesión, `abrir_sesion()` hace dos cosas antes de crear la nueva:
+
+1. Cierra **cualquier otra sesión de esa persona** con motivo `otro_dispositivo`, y devuelve en la respuesta de dónde se cerró (`sesion_anterior`), para que la app muestre «Tenías tu sesión abierta en tableta-03. Se cerró allí y todo tu trabajo está a salvo».
+2. Cierra la sesión **de otra persona en esa misma tableta** con motivo `dispositivo_compartido`, porque un dispositivo compartido tiene cero o una sesión (INV-011).
+
+El dispositivo abandonado, en su siguiente petición, recibe `401 sesion_cerrada_otro_dispositivo` y la app vuelve al acceso con el aviso correspondiente.
 
 ---
 
 ## 3 · El viaje completo de una petición
 
-Este es el ejemplo más didáctico del documento. Seguimos un caso real de principio a fin: **Juan, estudiante de octavo, entra a su tableta**.
+Seguimos un caso real de principio a fin: **Juan, estudiante de octavo, entra a su tableta.**
 
 ### 3.1 · Lo que ocurre en la pantalla
 
-Juan toca su tableta. Aparece un teclado numérico grande. Escribe su código, `122499`, y su PIN, `691302`. Toca el botón verde. Un segundo después ve su menú con sus asignaturas.
+Juan toca su tableta. Aparece un teclado numérico grande. Escribe su código, `122499`, y su PIN, `691302`. Toca el botón verde. Un segundo después ve su menú con sus asignaturas. Si hubiera dejado su sesión abierta en otra tableta, vería además un aviso de que allí se cerró.
 
 ### 3.2 · Lo que ocurre por dentro
 
 ```
    TABLETA (.NET MAUI)
         │  POST http://192.168.1.10:8000/api/acceso/sesiones/
-        │  { "identificador": "122499", "secreto": "691302", "dispositivo": "a8f3…" }
+        │  { "identificador": "122499", "secreto": "691302", "dispositivo": "a8f3…", "rol": "" }
         ▼
 ┌───────────────────────────────────────────────────────────────────────┐
 │ 1. urls.py            "sesiones/" → SesionesView                      │
@@ -167,94 +172,97 @@ Juan toca su tableta. Aparece un teclado numérico grande. Escribe su código, `
 │                       Es VistaPublica: no exige sesión previa         │
 ├───────────────────────────────────────────────────────────────────────┤
 │ 3. serializers.py     LoginEntrada revisa la FORMA del formulario:    │
-│                       ¿vienen los dos campos? ¿son texto? ¿caben?     │
-│                       NO revisa si la clave es correcta: eso no es    │
-│                       forma, es negocio                               │
+│                       ¿vienen identificador y secreto? ¿son texto?    │
+│                       NO revisa si la clave es correcta: eso es       │
+│                       negocio, no forma                               │
 ├───────────────────────────────────────────────────────────────────────┤
 │ 4. contenedor.py      Entrega las herramientas: archivo, caja fuerte, │
 │                       sellador de pases, reloj y generador de azar    │
 ├───────────────────────────────────────────────────────────────────────┤
 │ 5. casos_uso.py       AutenticarUsuario.ejecutar(…)  ← EL FUNCIONARIO │
-│                       Abre la carpeta de gestión                      │
+│                       Abre la carpeta con ejecutar_registrando: lo    │
+│                       que se escriba queda, aunque el resultado sea   │
+│                       un error                                         │
 └───────────────────────────────────────────────────────────────────────┘
         │
         ├─ a) dominio/valores.py · DocumentNumber.normalizar_entrada()
         │     "122499" → "122499".  Si fuera "1.042.888-795" → "1042888795"
-        │     Así el mismo documento escrito de tres formas es el mismo documento
         │
         ├─ b) infraestructura/seguridad.py · cifrador.indice()
-        │     Convierte el código en una huella HMAC de 64 caracteres.
-        │     Los identificadores están CIFRADOS en la base: no se puede buscar
-        │     "122499" directamente. Se busca su huella, que sí es siempre igual
+        │     Convierte el código en una huella HMAC. Los identificadores
+        │     están CIFRADOS en la base: se busca por huella, no por texto
         │
         ├─ c) infraestructura/repositorios.py · usuarios.por_identificador(huella)
-        │     Encuentra a Juan.  Si no lo encontrara, el código verifica igual
-        │     contra un hash señuelo, para que "no existe" tarde lo mismo que
-        │     "clave incorrecta" y nadie pueda adivinar quién está matriculado
+        │     Encuentra a Juan (sólo entre identificadores vigentes, no retirados).
+        │     Si no lo encontrara, verifica igual contra un hash señuelo, para que
+        │     "no existe" tarde lo mismo que "clave incorrecta"
         │
-        ├─ d) casos_uso.py · politica_de(usuario, rol)
-        │     Busca el reglamento del perfil "student" de ese colegio,
-        │     y si su grupo tiene reglamento propio, ese manda
+        ├─ d) casos_uso.py · asignaciones_vigentes() + elección del rol
+        │     Juan tiene un solo rol vigente (STUDENT). Si tuviera varios y no
+        │     hubiera pedido uno, entraría con el principal (BR-021)
         │
-        ├─ e) dominio/entidades.py · politica.admite_identificador(CODIGO)
+        ├─ e) casos_uso.py · politica_de(usuario, rol)
+        │     ¿Qué reglamento le aplica? Su grupo (si tiene uno propio) → su nivel
+        │     educativo (preescolar con avatar, BR-024) → su perfil. Octavo A no
+        │     tiene excepción: manda la política de estudiantes: código + PIN
+        │
+        ├─ f) dominio/entidades.py · politica.admite_identificador(CODIGO)
         │     ¿Este colegio deja entrar con código estudiantil? Sí
         │
-        ├─ f) dominio/politicas.py · PoliticaBloqueo.evaluar(intentos, politica)
+        ├─ g) dominio/politicas.py · PoliticaBloqueo.evaluar(intentos, politica)
         │     ¿Juan viene de fallar cinco veces? No. Puede seguir
         │
-        ├─ g) infraestructura/seguridad.py · hasher.verificar(hash, "691302")
-        │     Argon2id compara. La base NUNCA guardó el PIN, sólo una huella
-        │     irreversible. Ni el programa ni nosotros podemos leer su PIN
+        ├─ h) infraestructura/seguridad.py · hasher.verificar(hash, "691302")
+        │     Argon2id compara. La base NUNCA guardó el PIN, sólo su huella
         │
-        ├─ h) repositorios · intentos.registrar(EXITO)
-        │     Queda constancia del acceso
+        ├─ i) repositorios · intentos.registrar(EXITO)
         │
-        ├─ i) casos_uso.py · abrir_sesion()
-        │     Crea la fila de sesión y pide a seguridad.py un JWT firmado,
-        │     con caducidad de cuatro horas
+        ├─ j) casos_uso.py · abrir_sesion()               ← SESIÓN ÚNICA
+        │     · cierra otras sesiones de Juan (otro_dispositivo) y anota cuál era
+        │     · cierra la sesión de otra persona en esta tableta (dispositivo_compartido)
+        │     · crea la fila de sesión con el ROL EFECTIVO
+        │     · pide a seguridad.py un JWT firmado de cuatro horas
         │
-        └─ j) auditoría + outbox
-              Un apunte legible para el profesor y un aviso por si algún día
-              hay una sede central con la que sincronizar
+        └─ k) auditoría + outbox
+              identidad.sesion.abierta.v1 en la cola de salida, en la misma transacción
         │
         ▼  Se cierra la carpeta: TODO lo anterior se confirma de golpe
 ┌───────────────────────────────────────────────────────────────────────┐
 │ 6. views.py           Devuelve el diccionario tal cual, como JSON      │
+│                       { token, expira_en, inactividad_min,             │
+│                         sesion_anterior, roles_disponibles, usuario }   │
 └───────────────────────────────────────────────────────────────────────┘
         │
         ▼
    TABLETA guarda el pase en el almacén seguro del dispositivo
         │  GET /api/acceso/yo/   con el pase en la cabecera
         ▼
-   Recibe menú "student", permisos y grupos → pinta el menú del estudiante
+   autenticacion.py → ResolverPrincipal: ¿sesión vigente? ¿no cerrada? ¿no inactiva?
+   Recibe menú "student", rol efectivo, permisos y grupos → pinta el menú del estudiante
 ```
 
-### 3.3 · Las tres cosas que este viaje enseña
+### 3.3 · Las cuatro cosas que este viaje enseña
 
-1. **La vista es muy corta a propósito.** `SesionesView.post()` tiene tres líneas: validar la forma, llamar al caso de uso, devolver. Toda la inteligencia está en el caso de uso, y por eso se puede probar sin levantar un servidor.
+1. **La vista es muy corta a propósito.** Tres líneas: validar la forma, llamar al caso de uso, devolver. Toda la inteligencia está en el caso de uso, y por eso se prueba sin levantar un servidor.
 2. **El dominio decide, la infraestructura obedece.** Quién puede entrar lo decide `politicas.py`, que no sabe qué es una base de datos. Cómo se guarda lo resuelve `repositorios.py`, que no decide nada.
-3. **Los datos sensibles cambian de forma al cruzar la frontera.** El código de Juan entra en texto, se guarda cifrado y se busca por huella. Su PIN entra en texto y nunca se guarda: sólo su huella Argon2id. Esa conversión ocurre siempre en el mismo sitio, la infraestructura, y nunca en la vista ni en el caso de uso.
+3. **Los datos sensibles cambian de forma al cruzar la frontera.** El código de Juan entra en texto, se guarda cifrado y se busca por huella. Su PIN nunca se guarda: sólo su huella Argon2id.
+4. **El reglamento se resuelve por el objeto, no por la persona.** Que Juan entre con PIN o con avatar lo dice el nivel de su grupo, no una casilla en su ficha. Es la regla del Maestro «el alcance se resuelve por el objeto» aplicada a las credenciales.
 
 ---
 
-## 4 · Los 35 casos de uso, uno por uno
+## 4 · Los 39 casos de uso, uno por uno
 
-Cada ficha tiene la misma estructura:
-
-- **Qué hace**, en una frase sin tecnicismos
-- **Ruta HTTP** y ejemplo real
-- **Recorrido**: por qué capas pasa
-- **Pantalla** del frontend que lo consume (códigos de [acceso-sugerencias.html](../../specs/presentaciones/acceso-sugerencias.html))
+Cada ficha tiene la misma estructura: **qué hace**, **ruta y ejemplo**, **recorrido** por capas, **pantalla** que lo consume y, cuando aplica, la **función del Maestro** que cumple.
 
 ---
 
 ### Familia A · Arranque y dispositivos
 
-#### A.1 · `InstalarNodo`
+#### A.1 · `InstalarNodo` (JRN-001, PAN-204)
 
-**Qué hace.** Es el día cero del equipo del aula. Resuelve un problema de huevo y gallina: para crear usuarios hace falta un administrador, y para crear al administrador hacen falta permisos que nadie tiene todavía. De una sola vez crea el colegio, le pone reglamento de acceso a cada perfil y crea a la primera persona, que es administradora.
+**Qué hace.** El día cero del equipo. Resuelve el huevo y la gallina: para crear usuarios hace falta un administrador, y para crear al administrador hacen falta permisos que nadie tiene. De una vez crea el colegio, las **cinco** políticas de acceso (una por perfil) y a la primera persona, administradora.
 
-**Ruta.** `POST /api/acceso/instalacion/` · pública · una única vez en la vida del equipo.
+**Ruta.** `POST /api/acceso/instalacion/` · pública · una única vez.
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/acceso/instalacion/ -H "Content-Type: application/json" -d '{
@@ -263,579 +271,366 @@ curl -X POST http://127.0.0.1:8000/api/acceso/instalacion/ -H "Content-Type: app
 }'
 ```
 
-Respuesta:
+**Recorrido.** `InstalacionEntrada` (forma) → caso de uso: ¿ya hay colegio? 409 → `asegurar_plantillas()` (permisos y los cinco roles) → `CountryCode`/`LanguageCode`/`LocaleCode` validan ISO → `POLITICAS_POR_DEFECTO` → `CrearUsuario._crear()` para la administradora, que recibe además su **primera asignación de rol** con alcance de organización → auditoría y evento `identidad.organizacion.instalada.v1`.
 
-```json
-{ "organizacion": { "id": "…", "codigo": "IE-SANJOSE", "locale": "es-CO" },
-  "administrador": { "id": "…", "alias": "Rectoría" },
-  "password_inicial": "cozzz4S.3%B8" }
-```
+**Detalle.** `password_inicial` se devuelve una sola vez: es la «hoja de acceso del administrador, de un solo uso» del Maestro.
 
-**Recorrido.**
-
-| Paso | Capa | Qué pasa |
-|---|---|---|
-| 1 | `interfaces/serializers.py` · `InstalacionEntrada` | Comprueba que vengan organización y administrador con sus campos |
-| 2 | `aplicacion/casos_uso.py` · `InstalarNodo` | Abre la carpeta. Si ya hay un colegio → **409** `ya_instalado`. Esto impide que alguien en la red se fabrique un administrador nuevo |
-| 3 | `aplicacion/casos_uso.py` · `asegurar_plantillas()` | Se asegura de que existan el catálogo de permisos y los roles de fábrica (ya los sembró la migración, pero se comprueba) |
-| 4 | `dominio/valores.py` | `CountryCode`, `LanguageCode` y `LocaleCode` validan los formatos internacionales: `CO`, `es`, `es-CO`. Si llega «Colombia», se rechaza |
-| 5 | `dominio/plantillas.py` · `POLITICAS_POR_DEFECTO` | De aquí salen los tres reglamentos: estudiantes con código y PIN, docentes con documento y contraseña, administración con contraseña larga |
-| 6 | `CrearUsuario._crear()` | Crea a la administradora reutilizando el mismo código que usará el profesor después. `creado_por=None`: es la única persona a la que no la creó nadie |
-| 7 | `infraestructura/seguridad.py` | Si no mandaron contraseña, se genera una y se guarda su huella Argon2id |
-| 8 | auditoría + outbox | Queda constancia de la instalación |
-
-**Detalle importante.** `password_inicial` se devuelve **una sola vez**. De la contraseña sólo se guarda una huella irreversible; no hay forma de volver a consultarla. Quien instala tiene que anotarla.
-
-**Pantalla.** Idealmente ninguna: lo hace el instalador de Windows, que sí corre con teclado. Si el equipo llega sin instalar, OPS detecta `acceso.instalado: false` en `/health/` y abre el asistente **A2 · primer arranque**.
+**Pantalla.** Instalador de Windows; A2 como respaldo si el equipo llega sin instalar.
 
 ---
 
-#### A.2 · `ConsultarConfiguracion`
+#### A.2 · `ConsultarConfiguracion` (PAN-101, BR-024)
 
-**Qué hace.** Le dice a la app **cómo debe pintar la pantalla de acceso**, sin revelar ningún dato de ninguna persona. Es la razón por la que el mismo programa sirve para un colegio de primaria y para una universidad.
+**Qué hace.** Le dice a la app cómo pintar la pantalla de acceso, sin revelar ningún dato personal. Por perfil, y **por nivel educativo** cuando el colegio configuró excepciones: preescolar con avatar, primaria con clave corta, secundaria con contraseña, todo en la misma instalación.
 
 **Ruta.** `GET /api/acceso/configuracion/` · pública.
 
-```json
-{ "instalado": true,
-  "organizacion": { "codigo": "IE-SANJOSE", "nombre": "IE San José", "locale": "es-CO" },
-  "perfiles": {
-    "student": { "tipo_identificador": "CODIGO_ESTUDIANTIL", "tipo_secreto": "PIN", "longitud_minima": 6, "permite_acceso_temporal": true },
-    "teacher": { "tipo_identificador": "DNI", "tipo_secreto": "PASSWORD", "longitud_minima": 8, "permite_acceso_temporal": false }
-  },
-  "duracion_sesion_min": 240,
-  "claves_derivadas": true }
-```
+**Cómo lo usa el frontend.** Si el nivel del grupo dice `AVATAR`, la app muestra una cuadrícula de dibujos; si dice `PIN`, teclado numérico; si dice `PASSWORD`, teclado completo. También trae `inactividad_min`, para que la app avise antes de que la sesión se cierre sola.
 
-**Recorrido.** Vista pública → caso de uso → repositorio de organización y políticas. No toca dominio ni seguridad, salvo para preguntar si las claves de cifrado son las derivadas del prototipo.
-
-**Cómo lo usa el frontend.** Si `tipo_secreto` es `PIN`, la app muestra teclado numérico y pide seis dígitos. Si es `PASSWORD`, muestra teclado completo en pantalla. La etiqueta del primer campo cambia entre «Código», «Documento» y «Correo». **Nada de esto está escrito en la app.**
-
-**Pantalla.** S1 y S2 (tableta), O1 (nodo del profesor). Es la primera llamada de todas.
+**Pantalla.** S1, S2, O1.
 
 ---
 
-#### A.3 · `RegistrarDispositivo`
+#### A.3 · `RegistrarDispositivo` · A.4 · `ListarDispositivos` · A.5 · `ActualizarDispositivo`
 
-**Qué hace.** La tableta se presenta al aula y dice «soy esta». El profesor la verá luego como «tableta-07» cuando tenga que autorizarla para un examen.
+**Qué hacen.** La tableta se presenta al aula («soy esta», idempotente); el profesor las ve para elegir cuál autorizar; administración las renombra o da de baja. Dar de baja **cierra las sesiones abiertas en ella** con motivo `dispositivo_baja`.
 
-**Ruta.** `POST /api/acceso/dispositivos/` · pública · **idempotente** (se puede llamar mil veces sin duplicar nada).
+**Rutas.** `POST` / `GET /api/acceso/dispositivos/`, `PATCH /api/acceso/dispositivos/{id}/`.
 
-```bash
-curl -X POST .../api/acceso/dispositivos/ -d '{"identificador":"a8f3-hw-id","nombre":"tableta-07","tipo":"TABLETA"}'
-```
+**Nota del Maestro.** El dispositivo es **contexto, nunca identidad**: la sesión es de la persona; la tableta sólo dice desde dónde.
 
-Devuelve **201** la primera vez y **200** las siguientes, actualizando la hora de última conexión.
-
-**Recorrido.** `DispositivoEntrada` valida la forma → el caso de uso busca por identificador; si existe, actualiza; si no, crea. El `identificador` lo genera la app una vez y lo guarda en el almacén seguro del sistema operativo.
-
-**Pantalla.** S1 · Conectar al aula. Sucede de forma invisible al conectar.
-
----
-
-#### A.4 · `ListarDispositivos` y A.5 · `ActualizarDispositivo`
-
-**Qué hacen.** Ver las tabletas del aula y darlas de baja o renombrarlas. Dar de baja una tableta **revoca sus sesiones abiertas**: si una tableta se pierde, deja de servir de inmediato.
-
-**Rutas.** `GET /api/acceso/dispositivos/` y `PATCH /api/acceso/dispositivos/{id}/`.
-
-**Detalle de permisos.** Listar lo puede hacer quien tenga `device.manage` (administración) **o** `exam.temporary_access.grant` (el profesor), porque el profesor necesita ver las tabletas para elegir cuál autorizar. Modificarlas es sólo de administración.
-
-**Pantallas.** O3 (elegir tableta al autorizar un examen) y A1 · pestaña Tabletas.
+**Pantallas.** S1 (invisible), O3, A1.
 
 ---
 
 ### Familia B · Entrar, estar y salir
 
-#### B.1 · `AutenticarUsuario`
+#### B.1 · `AutenticarUsuario` (FUN-004, FUN-005, FUN-007, BR-021)
 
-**Qué hace.** La operación más usada del sistema: comprobar quién es alguien y entregarle un pase de entrada válido por cuatro horas. Ya la recorrimos entera en la sección 3.
+**Qué hace.** Comprobar quién es alguien y entregarle un pase válido por cuatro horas, imponiendo la sesión única. Recorrido completo en la sección 3.
 
 **Ruta.** `POST /api/acceso/sesiones/` · pública.
 
-**Las cuatro defensas que aplica, en orden.**
+**Elegir el rol.** Si la persona tiene varios roles vigentes, puede enviar `"rol": "REPORTS"` y trabajará esa sesión como Reportes: verá el menú de Reportes y sólo los permisos de Reportes. Si no envía nada, entra con su rol principal. La respuesta trae `roles_disponibles` para que la app ofrezca el cambio.
+
+**Las cuatro defensas.**
 
 | Defensa | Qué evita |
 |---|---|
-| Mismo error y mismo tiempo para «no existe» y «clave incorrecta» | Que alguien descubra quién está matriculado probando códigos |
-| El tipo de identificador debe estar permitido por el reglamento | Que un estudiante entre con su documento cuando el colegio dijo «aquí se entra con el código» |
-| Bloqueo tras cinco fallos en quince minutos | Que alguien pruebe PIN uno por uno hasta acertar |
-| Argon2id, deliberadamente lento | Que robar la base de datos sirva para adivinar las claves |
+| Mismo error y mismo tiempo para «no existe», «tipo no permitido», «rol no asignado» y «clave incorrecta» | Que alguien descubra quién está matriculado |
+| El tipo de identificador debe estar permitido por el reglamento aplicable | Entrar con el documento cuando el colegio dijo «aquí se entra con la matrícula» |
+| Bloqueo tras cinco fallos en quince minutos (FUN-007), con evento `identidad.cuenta.bloqueada.v1` | Probar PIN uno por uno |
+| Argon2id, deliberadamente lento | Que robar la base sirva para adivinar claves |
 
-**Respuestas posibles.**
+**Respuestas.** `200` (con `sesion_anterior` si cerró otra) · `401 credenciales_invalidas` con `intentos_restantes` · `423 usuario_bloqueado` con `reintentar_en_seg`.
 
-| Código | Significa | Qué hace la app |
-|---|---|---|
-| 200 | Adelante | Guarda el pase. Si `debe_cambiar_credencial`, va a la pantalla de cambio |
-| 401 | Código o clave incorrectos | «Te quedan N intentos», con el número que devuelve el backend |
-| 423 | Bloqueado | Pantalla de espera con cuenta regresiva |
-
-**Pantallas.** S2 (estudiante) y O1 (profesor).
+**Pantallas.** S2, O1, S6/PAN-103 para el aviso de sesión anterior.
 
 ---
 
-#### B.2 · `ResolverPrincipal`
+#### B.2 · `ResolverPrincipal` (FUN-009, FUN-011)
 
-**Qué hace.** Es el **portero invisible**. No tiene ruta propia: se ejecuta automáticamente en *cada* petición que traiga un pase de entrada, antes de que la vista vea nada.
+**Qué hace.** Es el **portero invisible**. Sin ruta propia: se ejecuta en *cada* petición que traiga un pase, antes de que la vista vea nada.
 
-**Recorrido.** `interfaces/autenticacion.py` · `AutenticacionJwt` lee la cabecera `Authorization: Bearer …` → llama a este caso de uso → comprueba cuatro cosas contra la base:
+**Recorrido.** `autenticacion.py` lee `Authorization: Bearer …` → este caso de uso comprueba contra la base, en orden:
 
-1. La firma del pase es válida y no ha caducado.
-2. La sesión existe y no fue revocada.
-3. La cuenta sigue activa.
-4. Si la credencial es provisional, lo marca en el `Principal`.
+1. La firma del pase es válida y no caducó.
+2. La sesión existe y no fue cerrada. Si fue cerrada, dice **por qué**: `sesion_cerrada_otro_dispositivo`, `sesion_inactiva` o `sesion_revocada`, para que la app muestre el mensaje correcto.
+3. **Inactividad (FUN-009):** si desde el último uso pasaron más minutos que `inactividad_min` del reglamento aplicable, la sesión se cierra aquí mismo con motivo `inactividad` y se rechaza. No hay temporizador en segundo plano: el reloj del nodo decide al primer contacto.
+4. La cuenta sigue activa y el rol efectivo de la sesión existe.
 
-**Por qué comprueba contra la base y no se fía del pase.** Porque el pase dura cuatro horas, y en ese rato pueden pasar cosas: el profesor cierra la sesión del estudiante, el rector suspende una cuenta, alguien cambia de rol. Al mirar la base en cada petición, esas decisiones **surten efecto en el instante**, sin esperar a que el pase caduque.
+**Por qué contra la base y no fiándose del pase.** Porque en cuatro horas pasan cosas: el profesor cierra la sesión del estudiante, alguien entra desde otra tableta, el rector suspende una cuenta. Al mirar la base en cada petición, esas decisiones surten efecto al instante.
 
-**Detalle de diseño.** Si no viene cabecera, este caso de uso no se ejecuta y el visitante queda como anónimo. Por eso añadir autenticación al proyecto **no rompió ninguna ruta anterior** del expediente ni de la biblioteca.
+**Reinicio del nodo (FUN-011).** La sesión vive en `m01_sesion`, no en la memoria del proceso. Si el equipo del aula se reinicia, el mismo pase sigue valiendo y la primera petición «restaura» la sesión sin que el profesor vuelva a escribir su clave. Hay una prueba que lo simula.
 
 ---
 
 #### B.3 · `ConsultarIdentidad`
 
-**Qué hace.** Responde «¿quién soy y qué puedo hacer aquí?». Es lo que decide qué menú ve cada persona.
+**Qué hace.** Responde «¿quién soy y qué puedo hacer aquí?». Decide qué menú ve cada persona.
 
-**Ruta.** `GET /api/acceso/yo/` · con sesión.
+**Ruta.** `GET /api/acceso/yo/`.
 
-```json
-{ "usuario": { "id": "…", "alias": "Prof. Gómez", "rol": "TEACHER", "menu": "teacher", "nivel": 2,
-               "persona": { "nombres": "Luis", "apellidos": "Gómez" } },
-  "permisos": [ { "codigo": "credential.reset", "alcance": "ASSIGNED_GROUPS", "origen": "rol", "vigente_hasta": null },
-                { "codigo": "audit.read", "alcance": "ORGANIZATION", "origen": "adicional", "vigente_hasta": 1791000000000 } ],
-  "grupos": [ { "codigo": "8A", "nombre": "Octavo A", "papel": "DOCENTE" } ],
-  "sesion": { "clase": "NORMAL", "expira_en": 1789014400000, "dispositivo": "master" } }
-```
+**Qué devuelve de nuevo tras la alineación.** `rol_efectivo` (con el alcance de su asignación: organización, nivel o grupo), `roles_disponibles` (para cambiar de rol volviendo a entrar), los permisos ya **acotados** por la asignación, e `identificadores` con emisor y principal.
 
-**Recorrido.** Vista → caso de uso → arma el «contexto» del actor (rol + permisos extra + grupos donde es docente) → pregunta a `dominio/politicas.py` el alcance real de cada permiso → descifra los datos personales sólo para su propio dueño.
+**Advertencia que conviene repetir.** Esto sirve para dibujar la pantalla, no para proteger nada. Cada botón vuelve a comprobarse en el servidor al pulsarlo.
 
-**Por qué `alcance_concedido` se pregunta permiso a permiso.** Porque hay situaciones que recortan permisos sobre la marcha. Quien tiene una clave provisional sólo puede cambiarla. Quien entró con el pase de examen sólo puede rendir ese examen. Lo que aquí queda fuera, la app ni siquiera lo dibuja.
-
-**La ventaja práctica.** Si mañana el rector concede un permiso extra a una coordinadora, ella lo ve al volver a entrar. **Sin actualizar ni reinstalar nada** en los equipos del aula.
-
-**Advertencia que conviene repetir.** Esto sirve para dibujar la pantalla, no para proteger nada. Cada vez que alguien pulsa un botón, el servidor vuelve a comprobar el permiso por su cuenta. Ocultar un botón es comodidad; la seguridad está en la comprobación del servidor.
-
-**Pantallas.** Todas las de después del acceso: S6, O2, A1, A2.
+**Pantallas.** S6, O2, A1, A2.
 
 ---
 
 #### B.4 · `CambiarCredencialPropia`
 
-**Qué hace.** Cambiar la propia clave. Es obligatorio la primera vez y después de que un profesor la restablezca.
+**Ruta.** `PUT /api/acceso/yo/credencial/` · `{ "secreto_actual", "secreto_nuevo" }`.
 
-**Ruta.** `PUT /api/acceso/yo/credencial/` · `{ "secreto_actual": "204915", "secreto_nuevo": "480215" }`
+Cuatro reglas: la actual debe ser correcta; la nueva cumple el reglamento aplicable (PIN, contraseña o avatar); no repite las tres últimas; **cierra las demás sesiones** con motivo `credencial_cambiada`.
 
-**Cuatro reglas que aplica.**
-
-1. La clave actual debe ser correcta, aunque ya esté con sesión abierta.
-2. La nueva debe cumplir el reglamento del colegio (`PoliticaFortaleza`): largo, mayúsculas, símbolos, y nada de PIN triviales como `123456` o `111111`.
-3. No puede repetir ninguna de las tres últimas claves.
-4. Al cambiarla, **se cierran las demás sesiones** de esa persona y se conserva la actual.
-
-**Por qué la regla 4.** Si alguien cambió la clave porque sospecha que se la vieron, lo que quiere es echar al intruso. Si sus sesiones siguieran abiertas, cambiar la clave no serviría de nada.
-
-**Respuesta a una clave débil:**
-
-```json
-{ "detail": "La clave no cumple la política del colegio.", "codigo": "secreto_debil",
-  "reglas": ["Debe incluir al menos una letra mayúscula.", "Debe incluir al menos un símbolo (p. ej. . , ! # $ %)."] }
-```
-
-La lista `reglas` está redactada para **mostrarse tal cual en pantalla**. El frontend no tiene que traducir códigos ni duplicar las reglas del colegio.
-
-**Pantallas.** S4 (estudiante) y el equivalente en O1 para el profesor.
+**Pantalla.** S4.
 
 ---
 
-#### B.5 · `RevocarSesion` · B.6 · `ListarSesiones`
+#### B.5 · `RevocarSesion` · B.6 · `RevocarSesionesDeUsuario` (FUN-010) · B.7 · `ListarSesiones`
 
-**Qué hacen.** Cerrar sesión y ver quién está conectado.
+**Rutas.** `DELETE /sesiones/actual/` (propia, motivo `persona`) · `DELETE /sesiones/{id}/` (ajena, motivo `profesor` o `administrador`) · `DELETE /usuarios/{id}/sesiones/` (**todas** las de una persona, FUN-010) · `GET /sesiones/`.
 
-**Rutas.** `DELETE /api/acceso/sesiones/actual/` (la propia), `DELETE /api/acceso/sesiones/{id}/` (la de otro) y `GET /api/acceso/sesiones/`.
+Cada sesión listada trae su **rol efectivo**, su dispositivo y su `motivo_cierre`, así el administrador entiende de un vistazo por qué se cerró cada una.
 
-**Un caso de uso, dos permisos.** `RevocarSesion` mira si la sesión es propia o ajena. Si es propia pide `session.revoke_own`, que todo el mundo tiene. Si es ajena pide `session.revoke` sobre su dueño, que el profesor sólo tiene sobre sus estudiantes. El motivo queda anotado: `logout`, `docente` o `administrador`.
-
-**Es idempotente.** Revocar una sesión ya revocada devuelve 204 igual, sin error. Si la red falla y la app reintenta, no pasa nada raro.
-
-**Pantallas.** Botón «Salir» en S6 y O2; acción «Cerrar sesión» en la lista de estudiantes O2; pestaña Sesiones activas en A2.
+**Pantallas.** S6, O2, A2.
 
 ---
 
 ### Familia C · Personas
 
-#### C.1 · `CrearUsuario`
+#### C.1 · `CrearUsuario` (FUN-001, DEC-049, MSG-023)
 
-**Qué hace.** Matricular a alguien: cuenta, datos personales cifrados, identificadores, primera clave y, si corresponde, inscripción a un grupo. Todo en una sola carpeta de gestión.
+**Qué hace.** Matricular a alguien: cuenta, datos personales cifrados, identificadores externos, **primera asignación de rol**, inscripción al grupo y primera clave. Todo en una carpeta.
 
 **Ruta.** `POST /api/acceso/usuarios/`
 
 ```bash
 curl -X POST .../api/acceso/usuarios/ -H "Authorization: Bearer $TOKEN" -d '{
-  "rol": "STUDENT",
-  "alias": "Juan P.",
+  "rol": "STUDENT", "alias": "Juan P.",
   "persona": {"nombres":"Juan","apellidos":"Pérez","fecha_nacimiento":"2012-04-09"},
-  "identificadores": [{"tipo":"CODIGO_ESTUDIANTIL","valor":"122499","es_login":true},
+  "identificadores": [{"tipo":"CODIGO_ESTUDIANTIL","valor":"122499","es_login":true,"principal":true},
                       {"tipo":"DNI","valor":"1.020.334.556","es_login":false}],
   "grupo_id": "…"
 }'
-```
-
-Como no se mandó `secreto`, el backend genera un PIN y lo devuelve **una sola vez**:
-
-```json
-{ "id": "…", "alias": "Juan P.", "rol": "STUDENT", "debe_cambiar_credencial": true,
-  "secreto_inicial": "204915",
-  "identificadores": [ { "tipo": "CODIGO_ESTUDIANTIL", "valor": "122499", "es_login": true } ],
-  "grupos": [ { "codigo": "8A", "papel": "ESTUDIANTE" } ] }
 ```
 
 **Recorrido detallado.**
 
 | Paso | Capa | Qué pasa |
 |---|---|---|
-| 1 | `serializers.py` · `UsuarioEntrada` | Forma del formulario: rol, alias, persona, al menos un identificador |
-| 2 | `casos_uso.py` | Pregunta su alcance sobre `user.create`. Con `ASSIGNED_GROUPS` (profesor) sólo puede crear estudiantes y **debe** indicar uno de sus grupos. Con `ORGANIZATION` puede crear cualquier rol de nivel igual o inferior al suyo |
-| 3 | `dominio/valores.py` · `DocumentNumber` | Normaliza cada identificador. `1.020.334.556` y `1020334556` son el mismo documento |
-| 4 | `repositorios.py` · `existe_identificador()` | Comprueba por huella que ese código no sea ya de otra persona → **400** `identificador_duplicado` |
-| 5 | `repositorios.py` · `guardar_persona()` | Cifra nombres, apellidos, fecha de nacimiento y teléfono con AES-256-GCM al escribir |
-| 6 | `dominio/politicas.py` · `PoliticaFortaleza` | Si mandaron clave, la valida. Si no, se genera una que cumpla el reglamento |
-| 7 | `infraestructura/seguridad.py` | Argon2id sobre la clave |
-| 8 | grupos + auditoría + outbox | Inscripción y constancia |
+| 1 | `serializers.py` · `UsuarioEntrada` | Forma: rol, alias; identificadores opcionales; `provisional` |
+| 2 | `casos_uso.py` | Alcance sobre `identity.user.create`: el profesor sólo crea estudiantes y **debe** indicar un grupo suyo; administración crea cualquier nivel igual o inferior |
+| 3 | `dominio/valores.py` · `DocumentNumber` | Normaliza cada identificador |
+| 4 | `repositorios.py` · `existe_identificador()` | ¿Ya es de otra persona (vigente)? → 400 `identificador_duplicado` |
+| 5 | `casos_uso.py` | **DEC-049**: si no hay ningún identificador de acceso, el nodo emite una `CLAVE_INSTALACION` («IE-SANJOSE-583920»). **DEC-048**: exactamente un `principal`; `emisor` = código del colegio |
+| 6 | `repositorios.py` · `guardar_persona()` | Cifra nombres, apellidos, nacimiento y teléfono |
+| 7 | `repositorios.py` · `guardar_asignacion()` | Primera fila en `m01_usuario_rol`: rol principal, alcance de organización |
+| 8 | `repositorios.py` · `guardar_miembro()` | **Inscripción antes de la clave**: el grupo o su nivel pueden cambiar el reglamento (avatar en preescolar) |
+| 9 | `politica_de()` + `PoliticaFortaleza` + Argon2id | Valida o genera la clave según el reglamento aplicable |
+| 10 | auditoría + outbox | `identidad.usuario.creado.v1` |
 
-**El detalle de `secreto_definitivo`.** Por defecto, una clave puesta por otra persona nace como provisional y el dueño debe cambiarla al entrar. Algunos colegios prefieren que el docente asigne un PIN fijo a niños pequeños: para eso existe `"secreto_definitivo": true` junto con un `secreto` explícito.
+**Admisión nominal (JRN-007, MSG-023).** «Tu profesor puede dejarte entrar por tu nombre y vincularlo después.» El profesor envía `{ "rol": "STUDENT", "alias": "Lucía", "provisional": true, "grupo_id": "…" }`, sin identificadores ni clave. Se crea una cuenta **provisional** con clave de instalación; el profesor le da el pase de examen a la tableta y Lucía trabaja. Cuando llegue el padrón, se vincula (C.3).
 
-**Si algo falla, no queda rastro.** Una prueba lo comprueba: intentar crear un estudiante con PIN débil deja exactamente el mismo número de usuarios, credenciales y eventos que había antes.
-
-**Pantalla.** O5 · Nuevo estudiante. La respuesta con `secreto_inicial` se muestra como O4, en dígitos grandes, con «Ya lo anoté».
-
----
-
-#### C.2 · `ListarUsuarios` · C.3 · `VerUsuario`
-
-**Qué hacen.** La lista de personas y la ficha de una.
-
-**Rutas.** `GET /api/acceso/usuarios/?grupo=…&rol=STUDENT&estado=ACTIVO` y `GET /api/acceso/usuarios/{id}/`
-
-**Lo interesante: la lista se recorta sola.** El mismo endpoint devuelve cosas distintas según quién pregunte:
-
-| Quién pregunta | Qué recibe |
-|---|---|
-| Estudiante | Sólo a sí mismo |
-| Profesor | A sí mismo y a los estudiantes vigentes de sus grupos |
-| Administración | A todo el colegio hasta su propio nivel |
-
-El recorte lo hace la consulta en `repositorios.py`, guiada por el alcance que calculó el dominio. El frontend **no filtra nada**: pinta lo que llega.
-
-**Qué trae cada fila.** Además de nombre y rol, el estado de acceso que el profesor necesita de un vistazo: `bloqueado_hasta`, `intentos_fallidos`, `debe_cambiar_credencial`, `ultimo_acceso_en` y el tipo de clave que usa esa persona.
-
-**Pantallas.** O2 · Estudiantes del grupo, y A2 · Usuarios del colegio.
+**Pantallas.** O5 · Nuevo estudiante; O2 · «Admitir por nombre».
 
 ---
 
-#### C.4 · `ActualizarUsuario`
+#### C.2 · `ImportarUsuarios` (FUN-003, CAP-003, JRN-003, PAN-220, MSG-065)
 
-**Qué hace.** Cambiar alias, idioma, estado, datos personales o identificadores.
+**Qué hace.** Dar de alta alumnos y profesores por carga masiva desde un archivo delimitado, sin red.
 
-**Ruta.** `PATCH /api/acceso/usuarios/{id}/`
+**Ruta.** `POST /api/acceso/usuarios/importar/` · permiso `identity.user.import` (administración). También `manage.py acceso_importar padron.csv --actor-dni 1042888795`.
 
-**Tres reglas que conviene conocer.**
-
-1. Los estados que se pueden poner son `ACTIVO`, `SUSPENDIDO` y `RETIRADO`. **`BLOQUEADO` no se pone a mano** desde aquí: el bloqueo automático lo calcula el sistema y se levanta con `DesbloquearUsuario`.
-2. Dejar a alguien en estado distinto de activo **le cierra las sesiones** en el acto.
-3. Nadie puede suspenderse ni retirarse a sí mismo. Evita que el único administrador se deje fuera.
-
-**Pantalla.** A2 · ficha de usuario, y edición rápida desde O2.
-
----
-
-#### C.5 · `AsignarRol`
-
-**Qué hace.** Convertir a alguien en docente, estudiante o administrador.
-
-**Ruta.** `PUT /api/acceso/usuarios/{id}/rol/` · `{ "rol": "TEACHER" }` · sólo administración.
-
-**Dos salvaguardas.** No se puede asignar un rol de nivel superior al propio, y no se puede rebajar el propio rol. Al cambiar de rol **se revocan las sesiones**, porque el menú y los permisos cambian: obligar a volver a entrar es más limpio que intentar refrescar la app por la mitad.
-
-**Pantalla.** A2 · ficha de usuario.
-
----
-
-#### C.6 · `OtorgarPermiso` · C.7 · `RevocarPermiso`
-
-**Qué hacen.** Dar a una persona concreta un permiso que su rol no incluye, con motivo y fecha de caducidad. Es la alternativa a la tabla gigante de permisos por contexto que se descartó en el diseño.
-
-**Rutas.** `POST /api/acceso/usuarios/{id}/permisos/` y `DELETE /api/acceso/usuarios/{id}/permisos/{permiso}/`
-
-```json
-{ "permiso": "audit.read", "alcance": "ORGANIZATION",
-  "motivo": "Coordinadora académica 2026", "vigente_hasta": 1791000000000 }
+```
+rol,alias,nombres,apellidos,tipo_identificador,identificador,grupo,secreto
+STUDENT,,Carlos,Torres,CODIGO_ESTUDIANTIL,150001,8A,
+STUDENT,Sofi L.,Sofía,López,CODIGO_ESTUDIANTIL,150002,9B,
+TEACHER,Prof. Díaz,Ana,Díaz,DNI,90111222,,Docente.2026!
 ```
 
-**Dos techos, ninguno negociable.** Lo comprueba `PoliticaAutorizacion.alcance_otorgable()`:
+**Recorrido.**
 
-1. No se puede superar el techo del permiso. `credential.change_own` nunca pasa de `SELF`, porque cambiar la clave de otro es otro permiso distinto.
-2. Nadie puede conceder más alcance del que él mismo tiene.
-
-**El motivo es obligatorio.** Es lo que se lee en la auditoría meses después, cuando alguien pregunte por qué esa persona podía hacer eso.
-
-**Caducan solos.** Al pasar `vigente_hasta`, el permiso deja de contar sin que nadie tenga que acordarse de limpiarlo.
-
-**Pantalla.** A2 · ficha de usuario, sección Permisos adicionales.
-
----
-
-#### C.8 · `RestablecerCredencial`
-
-**Qué hace.** La recuperación de verdad, la que resuelve «olvidé mi clave» sin correo, sin SMS y sin internet. El profesor le pone al estudiante una clave provisional desde el aula.
-
-**Ruta.** `POST /api/acceso/usuarios/{id}/credencial/restablecer/`
-
-El cuerpo puede ir vacío (el backend genera la clave) o traer un `secreto` elegido por el docente.
-
-```json
-{ "secreto_provisional": "204915", "tipo_secreto": "PIN", "debe_cambiar": true, "sesiones_revocadas": 2 }
-```
-
-**Cuatro cosas ocurren a la vez, dentro de la misma carpeta.**
-
-1. La clave anterior deja de servir.
-2. La nueva nace marcada como provisional: al entrar, el estudiante **está obligado** a elegir una suya.
-3. Se cierran todas sus sesiones abiertas.
-4. Se registra un `DESBLOQUEO`, que además reinicia su contador de fallos. Práctico: casi siempre quien olvidó la clave también se bloqueó intentándolo.
-
-**Quién puede.** `credential.reset`. El profesor, sólo sobre estudiantes de sus grupos. Si intenta restablecer la del rector recibe un **404**, no un 403: el sistema no confirma ni desmiente que esa persona exista.
-
-**Pantalla.** O2 · botón «Nuevo PIN», que abre O4 con el número en grande.
-
----
-
-#### C.9 · `DesbloquearUsuario`
-
-**Qué hace.** Levantar el castigo de alguien que falló la clave demasiadas veces.
-
-**Ruta.** `POST /api/acceso/usuarios/{id}/desbloquear/`
-
-**Cómo funciona, y por qué es elegante.** El bloqueo **no es una casilla** en la tabla de usuarios: se calcula contando los fallos recientes. Desbloquear no consiste en apagar una casilla, sino en **insertar una fila `DESBLOQUEO`** en el registro de intentos. Como el conteo sólo mira los fallos posteriores al último éxito o desbloqueo, esa fila borra el pasado de un plumazo.
-
-La ventaja: el historial queda completo. Se puede ver que María falló cinco veces el martes y que la profesora la desbloqueó, algo que una casilla habría borrado.
-
-**Pantalla.** O2 · botón «Desbloquear», visible sólo en las filas con el aviso de bloqueo.
-
----
-
-### Familia D · La emergencia del examen
-
-Esta familia existe por una escena concreta. El examen empieza a las 10:00. Son las 09:57. Juan dice que olvidó su clave. Puede ser verdad, puede haberse bloqueado solo, o puede estar buscando ventaja. **El sistema no tiene que adivinar cuál de las tres:** el profesor decide y todo queda registrado.
-
-#### D.1 · `OtorgarAccesoTemporal`
-
-**Qué hace.** Entrega un pase de emergencia, de dos formas posibles.
-
-**Ruta.** `POST /api/acceso/autorizaciones-temporales/`
-
-**Opción A · autorizar la tableta** (la recomendada, porque Juan no tiene que recordar nada):
-
-```json
-{ "usuario_id":"…", "tipo":"DISPOSITIVO", "dispositivo_id":"…",
-  "evaluacion_ref":"co-sec-mat-eval-08", "minutos":5, "motivo":"Olvidó el PIN antes del parcial" }
-```
-
-Devuelve `entrega: { "grant_id": "…", "token": "b64url-256-bits" }`. El nodo envía eso a esa tableta concreta por el canal del aula. Nadie tiene que teclear nada.
-
-**Opción B · código para dictar:**
-
-```json
-{ "usuario_id":"…", "tipo":"CODIGO", "evaluacion_ref":"co-sec-mat-eval-08", "minutos":5, "motivo":"…" }
-```
-
-Devuelve `entrega: { "codigo": "834195" }`. El profesor lo dicta y Juan lo escribe.
-
-**Cómo se guarda cada secreto, y por qué distinto.**
-
-| Tipo | Se guarda | Por qué |
+| Paso | Capa | Qué pasa |
 |---|---|---|
-| Token de tableta | SHA-256 | Son 256 bits al azar: imposible de adivinar, el hash rápido basta y el canje es instantáneo |
-| Código de 6 dígitos | **Argon2id** | Sólo un millón de combinaciones. El hash lento, los cinco minutos de vida, el uso único y los tres fallos son lo que lo protege |
+| 1 | `ImportacionEntrada` | Llega `contenido` (el texto del archivo) o `filas` ya parseadas |
+| 2 | `casos_uso.py` · `_parsear()` | `csv.DictReader`. **Precondición del Maestro**: si las columnas no son las esperadas → 400 con `columnas_esperadas` |
+| 3 | Por cada fila | Busca el identificador por huella. Si **ya existe**, «fusiona»: no duplica, lo reporta en `existentes`. Si no, `CrearUsuario._crear()` con el grupo de la columna |
+| 4 | Errores por fila | Se capturan y van a `rechazadas` con `fila`, `motivo` y `codigo`; **no abortan el lote** (MSG-065: «Importamos n de m. Las k filas con problemas están listas para descargar y corregir») |
+| 5 | Al final | Un solo asiento de auditoría con los conteos y `identidad.usuarios.importados.v1` |
 
-**Límites.** Entre uno y treinta minutos. El perfil del estudiante debe permitir acceso temporal (`permite_acceso_temporal`). El alcance máximo del permiso es `ASSIGNED_GROUPS`, así que **ni el rector** puede dar un pase a un estudiante que no esté en un grupo suyo: es una decisión del aula, tomada en el aula.
+**Respuesta.** `{ resumen, creados (con secreto_inicial), existentes, rechazadas }`. El alias se propone «Nombre A.» si no viene.
 
-**Pantalla.** O3 · diálogo de dos toques, con las dos opciones lado a lado.
+**Pantalla.** A1 · Importar padrón, con vista previa y descarga de rechazadas.
 
 ---
 
-#### D.2 · `CanjearAccesoTemporal`
+#### C.3 · `VincularUsuarioProvisional` (JRN-007)
 
-**Qué hace.** Convierte el pase en una sesión de verdad, limitada.
+**Qué hace.** Cierra la admisión nominal. La cuenta provisional que creó el profesor se vincula con la persona definitiva que llegó por el padrón.
 
-**Ruta.** `POST /api/acceso/autorizaciones-temporales/canjear/` · pública (quien canjea todavía no tiene sesión).
+**Ruta.** `POST /api/acceso/usuarios/{provisional}/vincular/` · `{ "usuario_definitivo_id": "…" }` · permiso `identity.user.update` sobre ambas.
 
-```bash
-# Opción B
-curl -X POST .../canjear/ -d '{"codigo":"834 195","dispositivo":"a8f3-hw-id"}'
-# Opción A
-curl -X POST .../canjear/ -d '{"grant_id":"…","token":"…","dispositivo":"a8f3-hw-id"}'
+**Qué pasa.** La provisional pasa a `RETIRADO` con `vinculado_a` apuntando a la definitiva; sus sesiones se cierran; se publica `identidad.usuario.vinculado.v1` para que el expediente reasigne lo que hizo. **Nada se borra** (BR-025): el rastro de que Lucía trabajó como provisional queda.
+
+**Pantalla.** O2 · en la fila del alumno provisional, «Vincular con…».
+
+---
+
+#### C.4 · `ListarUsuarios` · C.5 · `VerUsuario` · C.6 · `ActualizarUsuario`
+
+**Rutas.** `GET /usuarios/`, `GET` / `PATCH /usuarios/{id}/`.
+
+**La lista se recorta sola** según el alcance del rol efectivo: el estudiante se ve a sí mismo; el profesor a sus estudiantes; una coordinadora de nivel a todo su nivel; administración a todo el colegio.
+
+**Reglas de `ActualizarUsuario`.** Dejar de estar activo cierra sesiones (`estado_cuenta`). **BR-025**: una cuenta `RETIRADO` no se reactiva (409) y sus identificadores siguen reservados. Cambiar identificadores **retira** los anteriores en vez de borrarlos (CV-05).
+
+**Pantallas.** O2, A2.
+
+---
+
+#### C.7 · `AsignarRol` (FUN-002, CAP-005, CAP-006, BR-021) · C.8 · `RevocarRolAsignado`
+
+**Qué hace.** Asignar un rol **con alcance concreto y vigencia**. Es la tabla `m01_persona_rol` del Maestro.
+
+**Ruta.** `POST /api/acceso/usuarios/{id}/roles/`
+
+```json
+{ "rol": "ADMIN", "alcance_tipo": "LEVEL", "alcance_id": "secundaria", "vigente_hasta": null, "principal": false }
 ```
 
-**Las cuatro comprobaciones.** No usado, no revocado, no caducado y, en la opción A, **que sea exactamente esa tableta**. Un pase emitido para la tableta 07 no sirve en la 03, aunque el token sea correcto.
+Tres ejemplos que resuelven casos reales del colegio:
 
-**Al tercer fallo, el pase muere.** Los intentos fallidos se registran contra esa autorización concreta; al llegar a tres queda revocada y ya no sirve ni con el código correcto.
+| Caso | Cuerpo |
+|---|---|
+| La profesora Gómez también es coordinadora de secundaria | `rol: ADMIN`, `alcance_tipo: LEVEL`, `alcance_id: secundaria` |
+| Un profesor suplente cubre 8A hasta fin de mes (CAP-006) | `rol: TEACHER`, `alcance_tipo: ASSIGNED_GROUPS`, `alcance_id: <8A>`, `vigente_hasta: <fin de mes>` |
+| La secretaria pasa a Reportes como rol por defecto | `rol: REPORTS`, `principal: true` |
 
-**Qué permite la sesión resultante.** Es de clase `TEMPORAL` y sólo deja rendir el examen, ver el propio progreso, ver contenido y cerrar sesión. **No permite cambiar la credencial.** Ese detalle es deliberado: si lo permitiera, el atajo de emergencia se convertiría en una forma de apoderarse de una cuenta. Para cambiar la clave está `RestablecerCredencial`, que exige al profesor.
+**Reglas.** Nadie asigna un nivel superior al suyo ni un alcance mayor que el de su propia asignación. Repetir la misma asignación la sustituye (idempotente). `principal: true` cambia el menú por defecto y cierra las sesiones (`rol_cambiado`).
 
-Si la autorización fijó `evaluacion_ref`, el pase sólo sirve para esa evaluación.
+**Revocar.** `DELETE /usuarios/{id}/roles/{asignacion_id}/`. Nunca deja a la persona sin rol (409): asigne otro antes o retire la cuenta.
 
-**Pantalla.** S3. En la opción A ni siquiera hay formulario: un aviso «Tu profesor autorizó esta tableta» y un botón.
+**Pantalla.** A2 · ficha de usuario, sección Roles.
 
 ---
 
-#### D.3 · `ListarAutorizaciones` · D.4 · `RevocarAccesoTemporal`
+#### C.9 · `OtorgarEscalada` (BR-101, PAN-241) · C.10 · `RevocarEscalada`
 
-**Qué hacen.** Ver el historial de pases y anular uno.
+**Qué hace.** Un permiso puntual, temporal, con motivo. Es la tabla `m01_escalada` del Maestro.
 
-**Rutas.** `GET /api/acceso/autorizaciones-temporales/?usuario=…&vigentes=1` y `DELETE /api/acceso/autorizaciones-temporales/{id}/`
+**Ruta.** `POST /api/acceso/usuarios/{id}/escaladas/`
 
-**El listado nunca devuelve secretos.** Ni el código ni el token aparecen: sólo cuándo se emitió, si se usó, cuándo caduca y quién lo dio.
+```json
+{ "permiso": "audit.read", "alcance": "ORGANIZATION", "motivo": "Coordinadora académica 2026", "vigente_hasta": 1789014400000 }
+```
 
-**Revocar también cierra la sesión.** Si el pase ya produjo una sesión y el profesor se arrepiente, anular el pase echa a esa sesión del sistema.
+**Tres reglas que no se negocian.**
 
-**Pantalla.** O3 · historial corto debajo de las dos opciones.
+1. **Caducidad obligatoria** (`vigente_hasta`), máximo 24 horas. Sin ella, 400. Caduca sola; renovar es un asiento nuevo.
+2. **Motivo obligatorio**: es lo que se lee en la auditoría meses después.
+3. **Sin autoconcesión**: quien concede y quien recibe deben ser identidades distintas, aunque ambos sean administradores (403).
+
+Además, el alcance no supera el techo del permiso ni el que tiene quien concede.
+
+**Pantalla.** A2 · Escalada temporal (MSG-052 «Tienes acceso a {alcance} hasta el {fecha}» y MSG-053 al vencer).
+
+---
+
+#### C.11 · `RestablecerCredencial` (FUN-006, CAP-004)
+
+**Qué hace.** La recuperación real: el profesor establece una clave provisional desde el aula, sin soporte externo. Se genera según el reglamento aplicable (PIN, contraseña o avatar).
+
+**Ruta.** `POST /api/acceso/usuarios/{id}/credencial/restablecer/`. → `{ "secreto_provisional": "204915", "debe_cambiar": true, "sesiones_revocadas": 2 }`. Una sola vez.
+
+**Pantalla.** O2 → O4.
+
+---
+
+#### C.12 · `DesbloquearUsuario` (FUN-008)
+
+**Ruta.** `POST /api/acceso/usuarios/{id}/desbloquear/`. Inserta una fila `DESBLOQUEO`; como el conteo sólo mira los fallos posteriores al último éxito o desbloqueo, esa fila borra el pasado sin borrar la evidencia. Publica `identidad.cuenta.desbloqueada.v1`.
+
+**Pantalla.** O2.
+
+---
+
+### Familia D · La emergencia del examen (CAP-002, CAP-004)
+
+El examen empieza a las 10:00. Son las 09:57. Juan dice que olvidó su clave. El sistema no adivina si es verdad: el profesor decide y todo queda registrado.
+
+#### D.1 · `OtorgarAccesoTemporal` · D.2 · `CanjearAccesoTemporal` · D.3 · `ListarAutorizaciones` · D.4 · `RevocarAccesoTemporal`
+
+**Rutas.** `POST` / `GET /autorizaciones-temporales/`, `POST …/canjear/` (pública), `DELETE …/{id}/`.
+
+**Opción A · autorizar la tableta.** El profesor elige «tableta-07»; el nodo genera `grant_id` + token de 256 bits (guarda SHA-256) y se lo entrega a esa tableta; la tableta canjea y entra con una sesión `TEMPORAL`. Juan no recuerda nada.
+
+**Opción B · código para dictar.** `834 195`, cinco minutos, un uso, guardado con Argon2id.
+
+**La sesión temporal** sólo permite rendir la evaluación, ver el propio progreso y cerrar sesión. **No permite cambiar la credencial**: para eso está restablecer. Como toda sesión, es única por persona y única por tableta.
+
+**Pantallas.** O3 (profesor), S3 (tableta).
 
 ---
 
 ### Familia E · Configuración del colegio
 
-#### E.1 · `ListarRoles` · E.2 · `ListarPermisos`
+#### E.1 · `ListarRoles` · E.2 · `ListarPermisos` · E.3 · `CrearRol` (PAN-222, TST-066)
 
-**Qué hacen.** Mostrar los roles disponibles y el catálogo completo de acciones posibles, cada una con su techo de alcance.
+**Rutas.** `GET /roles/` (los cinco de sistema + los del colegio), `GET /permisos/` (28, con `alcance_maximo` y `sensible`), `POST /roles/` (clona una plantilla y ajusta alcances sin superar el techo de cada permiso).
 
-**Rutas.** `GET /api/acceso/roles/` y `GET /api/acceso/permisos/`
+**Pantalla.** A1 · Roles y permisos.
 
-**Para qué sirve el catálogo.** Para que la pantalla de administración pueda dibujar la matriz permiso × rol sin tener la lista escrita a mano dentro de la app. Si mañana se añade un permiso nuevo en el backend, aparece solo en la pantalla.
+#### E.4 · `ListarPoliticas` · E.5 · `ConfigurarPolitica` (BR-023, BR-024)
 
-**Pantalla.** A1 · pestaña Roles y permisos.
-
----
-
-#### E.3 · `CrearRol`
-
-**Qué hace.** Crear un rol propio del colegio, clonando una plantilla y ajustándola. El caso típico: un «Coordinador» que es como un docente pero además lee la auditoría.
-
-**Ruta.** `POST /api/acceso/roles/`
-
-```json
-{ "codigo": "COORDINADOR", "nombre": "Coordinador", "plantilla": "TEACHER",
-  "permisos": [ { "codigo": "audit.read", "alcance": "ORGANIZATION" },
-                { "codigo": "content.project", "alcance": null } ] }
-```
-
-Se parte de la plantilla, se **añade** lo que traiga alcance y se **quita** lo que traiga `null`.
-
-**Las plantillas nunca se tocan.** `STUDENT`, `TEACHER` y `ADMIN` son de sistema y no tienen dueño: cualquier colegio las usa tal cual. Los roles propios llevan el identificador de su organización y sólo existen ahí.
-
-**Pantalla.** A1 · «Crear rol a partir de…».
-
----
-
-#### E.4 · `ListarPoliticas` · E.5 · `ConfigurarPolitica`
-
-**Qué hacen.** Ver y cambiar el reglamento de acceso de cada perfil. Es lo que permite que el mismo software sirva a un colegio de primaria y a una universidad.
-
-**Rutas.** `GET /api/acceso/politicas/` y `PUT /api/acceso/politicas/{perfil}/`
+**Rutas.** `GET /politicas/`, `PUT /politicas/{perfil}/` y, para excepciones por nivel, `PUT /politicas/student/?nivel=preescolar`.
 
 ```bash
-curl -X PUT .../api/acceso/politicas/student/ -H "Authorization: Bearer $TOKEN" \
-  -d '{"tipo_secreto":"PASSWORD","longitud_minima":8,"exige_mayuscula":true,"duracion_sesion_min":120}'
+curl -X PUT ".../api/acceso/politicas/student/?nivel=preescolar" -H "Authorization: Bearer $TOKEN" \
+  -d '{"tipo_secreto":"AVATAR","longitud_minima":4}'
 ```
 
-**El suelo de seguridad.** `PoliticaCredencial.validar()`, en el dominio, impide configuraciones absurdas: un PIN de menos de cuatro dígitos, una contraseña de menos de ocho caracteres, bloquear al primer error o una sesión de más de veinticuatro horas. Si algo no cuadra, **el cambio se rechaza entero** y el reglamento anterior sigue vigente.
+A partir de ahí, `GET /configuracion/` muestra `perfiles.student.niveles.preescolar.tipo_secreto = "AVATAR"` y las tabletas de los grupos de preescolar pintan la cuadrícula de dibujos. Los de octavo siguen con PIN. **Sin reinstalar nada.**
 
-**Efecto inmediato y visible.** Cambiar el tipo de secreto de los estudiantes a contraseña hace que la próxima llamada a `ConsultarConfiguracion` devuelva `PASSWORD`, y las tabletas pintan teclado completo en lugar de numérico. Sin reinstalar nada.
+El dominio impide reglamentos absurdos (`PoliticaCredencial.validar()`): PIN fuera de 4..8, avatar para docentes, inactividad mayor que la sesión…
 
-**Pantalla.** A1 · pestaña «Cómo entran», con tres tarjetas y un resumen en lenguaje llano del tipo «Los estudiantes entrarán con su código y un PIN de 6 números».
+**Pantalla.** A1 · «Cómo entran», con una tarjeta por perfil y pestañas por nivel.
 
 ---
 
-### Familia F · Grupos
+### Familia F · Grupos (contexto de MOD-002)
 
-Los grupos son el contexto que da sentido a «mis estudiantes». Sin grupos, el alcance `ASSIGNED_GROUPS` no significaría nada.
+#### F.1 · `ListarGrupos` · F.2 · `VerGrupo` · F.3 · `CrearGrupo` · F.4 · `ActualizarGrupo` · F.5 · `AgregarMiembro` · F.6 · `RetirarMiembro`
 
-#### F.1 · `ListarGrupos` · F.2 · `VerGrupo`
+Los grupos son el contexto que da sentido a «mis estudiantes» y ahora también llevan `nivel_clave`, que decide qué reglamento de acceso aplica a sus alumnos y qué grupos abre una asignación de rol con alcance `LEVEL`. Un profesor sólo añade o retira estudiantes de sus grupos. Retirar sella fecha, no borra.
 
-**Rutas.** `GET /api/acceso/grupos/` y `GET /api/acceso/grupos/{id}/`
-
-El listado también se recorta por alcance: la administración ve todos, el profesor los suyos, el estudiante aquel al que pertenece. Cada fila indica el papel de quien pregunta (`DOCENTE`, `MIEMBRO`) y cuántos miembros tiene.
-
-**Pantallas.** Selector de grupo en O2; pestaña Grupos en A1.
-
-#### F.3 · `CrearGrupo` · F.4 · `ActualizarGrupo`
-
-**Rutas.** `POST /api/acceso/grupos/` y `PATCH /api/acceso/grupos/{id}/`
-
-**El campo que más juego da: `politica_credencial_id`.** Un grupo puede tener su propio reglamento de acceso. Es la respuesta al requisito «en los grados superiores los estudiantes pueden usar contraseña profesional»: se crea el grupo de grado once apuntando al reglamento de docentes, y esos estudiantes entran con contraseña mientras el resto del colegio sigue con PIN.
-
-**Pantalla.** A1 · pestaña Grupos.
-
-#### F.5 · `AgregarMiembro` · F.6 · `RetirarMiembro`
-
-**Rutas.** `POST /api/acceso/grupos/{id}/miembros/` y `DELETE /api/acceso/grupos/{id}/miembros/{usuario_id}/`
-
-**Quién puede qué.** Con alcance de organización se puede añadir a cualquiera con cualquier papel. Con alcance de grupos (el profesor) **sólo estudiantes**: un profesor no puede nombrarse colega en otro curso ni añadir docentes al suyo.
-
-**Retirar no borra.** Se sella la fecha de salida. El historial queda, y el estudiante deja de estar bajo el alcance de ese profesor de inmediato.
-
-**Pantallas.** A1 · Grupos; alta rápida desde O5 al crear un estudiante.
+**Pantallas.** O2 (selector), A1 · Grupos, O5.
 
 ---
 
 ## 5 · Las piezas que no son casos de uso
 
-### 5.1 · Migraciones: el montaje de la oficina
+### 5.1 · Migraciones
 
 | Archivo | Qué hace |
 |---|---|
-| `0001_initial.py` | Crea las 17 tablas `m01_*` con sus índices y sus reglas de integridad |
-| `0002_plantillas.py` | Siembra el catálogo de 26 permisos y los tres roles de fábrica con sus alcances |
-
-**Por qué la siembra está en una migración y no en el código.** Porque así, con sólo ejecutar `migrate`, el equipo ya tiene un sistema de roles funcionando. Es literalmente el «plug and play» del requisito: el colegio que no quiera configurar nada, no configura nada.
-
-Es **idempotente**: se puede volver a ejecutar sin duplicar permisos ni roles.
+| `0001_initial.py` | Crea las tablas originales del módulo |
+| `0002_plantillas.py` | Siembra el catálogo de permisos y los roles de fábrica |
+| `0003_alineacion_mod001.py` | **Reforma**: crea `m01_usuario_rol`; añade `nivel_clave` e `inactividad_min` a las políticas, `emisor`/`principal`/`retirado_en` a los identificadores, `provisional`/`vinculado_a` a los usuarios, `rol` a las sesiones y `nivel_clave` a los grupos; cambia las restricciones únicas a parciales |
+| `0004_datos_mod001.py` | **Datos**: renombra los permisos a `identity.*` conservando roles y escaladas; siembra Reportes y Técnico; crea las políticas de los perfiles nuevos en las organizaciones existentes; convierte el rol de cada usuario en su primera asignación; marca el identificador principal y su emisor |
 
 ```bash
 .venv\Scripts\python manage.py migrate
 ```
 
-### 5.2 · El comando de consola: la puerta de servicio
+Las cuatro son idempotentes y se probaron sobre una base con datos.
 
-```bash
-.venv\Scripts\python manage.py acceso_instalar --codigo IE-SANJOSE --nombre "IE San José" --pais CO --admin-dni 1042888795 --admin-nombres Ana --admin-apellidos Pérez
-```
+### 5.2 · Comandos de consola
 
-**Detalle de diseño que conviene subrayar:** este comando **no reimplementa nada**. Llama exactamente al mismo caso de uso `InstalarNodo` que la ruta HTTP. Dos puertas distintas, un solo funcionario. Si mañana cambia una regla de la instalación, cambia en un solo sitio y las dos puertas se enteran.
+| Comando | Caso de uso | Para qué |
+|---|---|---|
+| `manage.py acceso_instalar --codigo … --nombre … --admin-dni … --admin-nombres …` | `InstalarNodo` | Primer arranque desde el instalador de Windows |
+| `manage.py acceso_importar padron.csv --actor-dni … [--delimitador ";"] [--grupo 8A]` | `ImportarUsuarios` | Cargar el padrón sin pasar por la interfaz (CAP-003, sin red) |
 
-Es la vía natural para el instalador de Windows, que corre con teclado y puede pedir la contraseña cómodamente, a diferencia del nodo del aula.
+Ninguno reimplementa nada: dos puertas, un solo funcionario.
 
-### 5.3 · `/health/`: el semáforo
+### 5.3 · `/health/`
 
-`GET /health/` incluye ahora el estado del módulo:
+`"acceso": { "instalado": true, "claves_derivadas": false }`. Si `instalado` es falso, la app ofrece el asistente; si `claves_derivadas` es verdadero, el instalador debe generar las tres claves propias.
 
-```json
-{ "status": "ok", "biblioteca": { … },
-  "acceso": { "instalado": true, "claves_derivadas": true } }
-```
+### 5.4 · Las pruebas
 
-- `instalado: false` → el equipo aún no tiene colegio. El frontend debe ofrecer el asistente de instalación.
-- `claves_derivadas: true` → las claves de cifrado se dedujeron de la clave general del proyecto. Sirve para el prototipo, pero en una instalación real el instalador debe generar tres claves propias.
-
-### 5.4 · Las pruebas: la red de seguridad
-
-| Archivo | Qué comprueba |
+| Suite | Qué comprueba |
 |---|---|
-| `test_arquitectura.py` | Que el reglamento no dependa de la tecnología |
-| `test_politicas.py` | Las decisiones de permisos, fortaleza y bloqueo, sin base de datos |
-| `test_seguridad.py` | Que el cifrado cifre, detecte manipulación y que los pases caduquen |
-| `test_api_sesiones.py` | Instalación única, entrada de estudiante y docente, bloqueo, desbloqueo, cierre |
-| `test_api_usuarios.py` | Creación por alcance, claves provisionales, roles, permisos extra, grupos, políticas |
-| `test_api_temporal.py` | Las dos opciones del pase de examen, uso único, caducidad, límites |
-| `test_outbox.py` | Que una operación fallida no deje absolutamente nada escrito |
+| `test_arquitectura` | Que el reglamento no dependa de la tecnología |
+| `test_politicas` | Cuatro alcances, el tope por asignación, los cinco roles, la regla 403, avatar, inactividad, bloqueo |
+| `test_seguridad` | Cifrado, huellas, Argon2id, JWT |
+| `test_api_sesiones` | Instalación, login, bloqueo, **sesión única**, **tableta compartida**, **inactividad**, **reinicio del nodo**, revocación total |
+| `test_api_usuarios` | Creación por alcance, **importación**, **admisión nominal y vinculación**, credenciales, **roles con alcance y vigencia**, **escaladas**, grupos, políticas por nivel, baja irreversible |
+| `test_api_temporal` | Las dos opciones del pase de examen |
+| `test_outbox` | Outbox transaccional y nomenclatura `identidad.*.v1` |
 
 ```bash
 .venv\Scripts\python manage.py test acceso
@@ -843,118 +638,113 @@ Es la vía natural para el instalador de Windows, que corre con teclado y puede 
 
 ---
 
-## 6 · Tabla maestra: caso de uso ↔ endpoint ↔ pantalla
+## 6 · Tabla maestra: caso de uso ↔ endpoint ↔ pantalla ↔ Maestro
 
-| # | Caso de uso | Endpoint | Sesión | Pantalla frontend |
-|---|---|---|---|---|
-| 1 | `InstalarNodo` | `POST /instalacion/` | no | Instalador de Windows · A2 (respaldo) |
-| 2 | `ConsultarConfiguracion` | `GET /configuracion/` | no | S1 · S2 · O1 |
-| 3 | `RegistrarDispositivo` | `POST /dispositivos/` | no | S1 (invisible) |
-| 4 | `AutenticarUsuario` | `POST /sesiones/` | no | **S2** · **O1** |
-| 5 | `ResolverPrincipal` | (todas, automático) | — | — |
-| 6 | `ConsultarIdentidad` | `GET /yo/` | sí | S6 · O2 · A1 · A2 |
-| 7 | `CambiarCredencialPropia` | `PUT /yo/credencial/` | sí | **S4** |
-| 8 | `RevocarSesion` | `DELETE /sesiones/actual/` · `/{id}/` | sí | S6 · O2 · A2 |
-| 9 | `ListarSesiones` | `GET /sesiones/` | sí | O2 · A2 |
-| 10 | `CrearUsuario` | `POST /usuarios/` | sí | **O5** |
-| 11 | `ListarUsuarios` | `GET /usuarios/` | sí | **O2** · A2 |
-| 12 | `VerUsuario` | `GET /usuarios/{id}/` | sí | A2 |
-| 13 | `ActualizarUsuario` | `PATCH /usuarios/{id}/` | sí | A2 |
-| 14 | `AsignarRol` | `PUT /usuarios/{id}/rol/` | sí | A2 |
-| 15 | `OtorgarPermiso` | `POST /usuarios/{id}/permisos/` | sí | A2 |
-| 16 | `RevocarPermiso` | `DELETE /usuarios/{id}/permisos/{p}/` | sí | A2 |
-| 17 | `RestablecerCredencial` | `POST /usuarios/{id}/credencial/restablecer/` | sí | **O4** |
-| 18 | `DesbloquearUsuario` | `POST /usuarios/{id}/desbloquear/` | sí | **O2** |
-| 19 | `OtorgarAccesoTemporal` | `POST /autorizaciones-temporales/` | sí | **O3** |
-| 20 | `CanjearAccesoTemporal` | `POST /autorizaciones-temporales/canjear/` | no | **S3** |
-| 21 | `ListarAutorizaciones` | `GET /autorizaciones-temporales/` | sí | O3 |
-| 22 | `RevocarAccesoTemporal` | `DELETE /autorizaciones-temporales/{id}/` | sí | O3 |
-| 23 | `ListarRoles` | `GET /roles/` | sí | A1 |
-| 24 | `ListarPermisos` | `GET /permisos/` | sí | A1 |
-| 25 | `CrearRol` | `POST /roles/` | sí | A1 |
-| 26 | `ListarPoliticas` | `GET /politicas/` | sí | A1 |
-| 27 | `ConfigurarPolitica` | `PUT /politicas/{perfil}/` | sí | **A1** |
-| 28 | `ListarGrupos` | `GET /grupos/` | sí | O2 · A1 |
-| 29 | `VerGrupo` | `GET /grupos/{id}/` | sí | A1 |
-| 30 | `CrearGrupo` | `POST /grupos/` | sí | A1 |
-| 31 | `ActualizarGrupo` | `PATCH /grupos/{id}/` | sí | A1 |
-| 32 | `AgregarMiembro` | `POST /grupos/{id}/miembros/` | sí | A1 · O5 |
-| 33 | `RetirarMiembro` | `DELETE /grupos/{id}/miembros/{u}/` | sí | A1 |
-| 34 | `ListarDispositivos` | `GET /dispositivos/` | sí | O3 · A1 |
-| 35 | `ActualizarDispositivo` | `PATCH /dispositivos/{id}/` | sí | A1 |
+| # | Caso de uso | Endpoint | Sesión | Pantalla | Maestro |
+|---|---|---|---|---|---|
+| 1 | `InstalarNodo` | `POST /instalacion/` | no | Instalador · A2 | JRN-001, PAN-204 |
+| 2 | `ConsultarConfiguracion` | `GET /configuracion/` | no | S1 · S2 · O1 | PAN-101, BR-024 |
+| 3 | `RegistrarDispositivo` | `POST /dispositivos/` | no | S1 | MOD-009 |
+| 4 | `AutenticarUsuario` | `POST /sesiones/` | no | **S2** · **O1** | FUN-004/005/007, BR-021 |
+| 5 | `ResolverPrincipal` | (todas, automático) | — | — | FUN-009, FUN-011 |
+| 6 | `ConsultarIdentidad` | `GET /yo/` | sí | S6 · O2 · A1 · A2 | PAN-020 |
+| 7 | `CambiarCredencialPropia` | `PUT /yo/credencial/` | sí | **S4** | — |
+| 8 | `RevocarSesion` | `DELETE /sesiones/actual/` · `/{id}/` | sí | S6 · O2 · A2 | — |
+| 9 | `RevocarSesionesDeUsuario` | `DELETE /usuarios/{id}/sesiones/` | sí | A2 | **FUN-010** |
+| 10 | `ListarSesiones` | `GET /sesiones/` | sí | O2 · A2 | — |
+| 11 | `CrearUsuario` | `POST /usuarios/` | sí | **O5** · O2 (nominal) | **FUN-001**, DEC-049, MSG-023 |
+| 12 | `ImportarUsuarios` | `POST /usuarios/importar/` · comando | sí | **A1 · Importar padrón** | **FUN-003**, CAP-003, PAN-220 |
+| 13 | `VincularUsuarioProvisional` | `POST /usuarios/{id}/vincular/` | sí | O2 | JRN-007 |
+| 14 | `ListarUsuarios` | `GET /usuarios/` | sí | **O2** · A2 | PAN-221 |
+| 15 | `VerUsuario` | `GET /usuarios/{id}/` | sí | A2 | — |
+| 16 | `ActualizarUsuario` | `PATCH /usuarios/{id}/` | sí | A2 | BR-025 |
+| 17 | `AsignarRol` | `POST /usuarios/{id}/roles/` · `PUT …/rol/` | sí | **A2** | **FUN-002**, CAP-005/006, BR-021 |
+| 18 | `RevocarRolAsignado` | `DELETE /usuarios/{id}/roles/{a}/` | sí | A2 | — |
+| 19 | `OtorgarEscalada` | `POST /usuarios/{id}/escaladas/` | sí | **A2 · PAN-241** | BR-101 |
+| 20 | `RevocarEscalada` | `DELETE /usuarios/{id}/escaladas/{p}/` | sí | A2 | — |
+| 21 | `RestablecerCredencial` | `POST /usuarios/{id}/credencial/restablecer/` | sí | **O4** | **FUN-006**, CAP-004 |
+| 22 | `DesbloquearUsuario` | `POST /usuarios/{id}/desbloquear/` | sí | **O2** | **FUN-008** |
+| 23 | `OtorgarAccesoTemporal` | `POST /autorizaciones-temporales/` | sí | **O3** | CAP-002/004 |
+| 24 | `CanjearAccesoTemporal` | `POST /autorizaciones-temporales/canjear/` | no | **S3** | CAP-002, TST-074 |
+| 25 | `ListarAutorizaciones` | `GET /autorizaciones-temporales/` | sí | O3 | — |
+| 26 | `RevocarAccesoTemporal` | `DELETE /autorizaciones-temporales/{id}/` | sí | O3 | — |
+| 27 | `ListarRoles` | `GET /roles/` | sí | A1 | PAN-222 |
+| 28 | `ListarPermisos` | `GET /permisos/` | sí | A1 | PAN-222 |
+| 29 | `CrearRol` | `POST /roles/` | sí | A1 | TST-066 |
+| 30 | `ListarPoliticas` | `GET /politicas/` | sí | A1 | BR-023 |
+| 31 | `ConfigurarPolitica` | `PUT /politicas/{perfil}/[?nivel=]` | sí | **A1** | BR-023, **BR-024** |
+| 32 | `ListarGrupos` | `GET /grupos/` | sí | O2 · A1 | MOD-002 |
+| 33 | `VerGrupo` | `GET /grupos/{id}/` | sí | A1 | — |
+| 34 | `CrearGrupo` | `POST /grupos/` | sí | A1 | — |
+| 35 | `ActualizarGrupo` | `PATCH /grupos/{id}/` | sí | A1 | — |
+| 36 | `AgregarMiembro` | `POST /grupos/{id}/miembros/` | sí | A1 · O5 | — |
+| 37 | `RetirarMiembro` | `DELETE /grupos/{id}/miembros/{u}/` | sí | A1 | — |
+| 38 | `ListarDispositivos` | `GET /dispositivos/` | sí | O3 · A1 | MOD-009 |
+| 39 | `ActualizarDispositivo` | `PATCH /dispositivos/{id}/` | sí | A1 | MOD-009 |
 
-En negrita, la pantalla que es **dueña** de ese caso de uso.
+En negrita, la pantalla dueña de cada operación.
 
 ---
 
 ## 7 · Las pantallas del frontend, vistas desde el backend
 
-El detalle visual está en [acceso-sugerencias.html](../../specs/presentaciones/acceso-sugerencias.html). Aquí va sólo lo que el backend exige de cada una.
+El detalle visual está en [acceso-sugerencias.html](../../specs/presentaciones/acceso-sugerencias.html). Aquí, lo que el backend exige de cada una tras la alineación.
 
-### 7.1 · Trece pantallas
-
-| Código | Pantalla | Casos de uso que consume | Obligación que impone el backend |
+| Código | Pantalla | Casos de uso | Obligación que impone el backend |
 |---|---|---|---|
-| **S1** | Conectar al aula (tableta) | 2, 3 | Generar un identificador de dispositivo una vez y guardarlo en el almacén seguro del sistema |
-| **S2** | Acceso del estudiante | 2, 4 | Teclado numérico propio si el reglamento dice `PIN`; teclado completo si dice `PASSWORD` |
-| **S3** | Código del profesor | 20 | En la opción A no hay formulario: un aviso y un botón |
-| **S4** | Elegir PIN nuevo | 7 | Interceptar el 403 `debe_cambiar_credencial` desde cualquier pantalla y traer aquí |
-| **S5** | Bloqueado | (respuesta 423) | Cuenta regresiva con los segundos que da el backend. Sin botón de reintentar |
-| **S6** | Menú del estudiante | 6, 8 | Pintar los hexágonos según `permisos[]`. Banda amarilla si la sesión es temporal |
-| **O1** | Acceso del docente | 2, 4 | **Teclado completo en pantalla**: el nodo no tiene teclado físico |
-| **O2** | Estudiantes del grupo | 6, 9, 11, 18, 28 | Una fila por estudiante con su estado de acceso y las acciones permitidas |
-| **O3** | Autorizar acceso a examen | 19, 21, 22, 34 | Dos toques como máximo. Código en dígitos grandes con cuenta regresiva |
-| **O4** | Nuevo PIN provisional | 17 | Mostrar el número una sola vez, con «Ya lo anoté» |
-| **O5** | Nuevo estudiante | 10, 32 | Teclado en pantalla para texto y pad numérico para código y PIN |
-| **A1** | Acceso y seguridad del colegio | 23-34 | Cuatro pestañas: Cómo entran, Roles y permisos, Grupos, Tabletas |
-| **A2** | Personas y sesiones | 1, 6, 9, 12-16 | Usuarios, sesiones activas, auditoría y asistente de instalación |
+| **S1** | Conectar al aula | 2, 3 | Generar un identificador de dispositivo una vez y guardarlo en el almacén seguro |
+| **S2** | Acceso del estudiante (PAN-101) | 2, 4 | Pintar según el reglamento del nivel: cuadrícula de avatares, pad numérico o teclado completo. Si hay `sesion_anterior`, mostrar PAN-103 / MSG-020 |
+| **S3** | Código del profesor | 24 | En la opción A no hay formulario: aviso y botón |
+| **S4** | Elegir clave nueva | 7 | Interceptar `403 debe_cambiar_credencial` desde cualquier pantalla |
+| **S5** | Bloqueado | (423) | Cuenta regresiva con `reintentar_en_seg` |
+| **S6** | Menú del estudiante | 6, 8 | Hexágonos según `permisos[]`; banda amarilla si la sesión es temporal; aviso antes de `inactividad_min` |
+| **O1** | Acceso del docente | 2, 4 | Teclado completo en pantalla (el nodo no tiene teclado). Si `roles_disponibles` tiene más de uno, ofrecer el cambio de rol |
+| **O2** | Estudiantes del grupo | 6, 10, 11, 13, 14, 22, 32 | Estado de acceso por fila; acciones «Nuevo PIN», «Desbloquear», «Autorizar acceso», «Admitir por nombre», «Vincular con…» |
+| **O3** | Autorizar acceso a examen | 23, 25, 26, 38 | Dos toques como máximo |
+| **O4** | Clave provisional | 21 | Mostrar una sola vez |
+| **O5** | Nuevo estudiante | 11, 36 | Identificadores opcionales (el nodo emite clave si faltan); inscripción obligatoria para el profesor |
+| **A1** | Acceso y seguridad del colegio | 12, 27–39 | Pestañas: Cómo entran (por perfil y por nivel), Roles y permisos, Grupos (con nivel), Tabletas, **Importar padrón** |
+| **A2** | Personas y sesiones | 1, 6, 9, 15–20 | Ficha con **roles asignados** (alcance y vigencia), **escaladas** (motivo y caducidad), sesiones con motivo de cierre, auditoría |
 
-### 7.2 · Cuatro comportamientos que no son una pantalla
-
-Estos se resuelven **una sola vez** en el cliente HTTP de la app, no en cada pantalla:
+### 7.1 · Comportamientos que no son una pantalla
 
 | El backend responde | La app hace |
 |---|---|
+| 401 `sesion_cerrada_otro_dispositivo` | «Tenías tu sesión abierta en otro dispositivo. Se cerró aquí y todo tu trabajo está a salvo.» Vuelve al acceso |
+| 401 `sesion_inactiva` | «Cerramos tu sesión por inactividad y guardamos todo.» Vuelve al acceso |
 | 401 `sesion_expirada` · `sesion_revocada` · `sesion_invalida` | Borra el pase y vuelve al acceso con un aviso corto |
-| 403 `debe_cambiar_credencial` | Navega a la pantalla de cambio de clave y no deja salir |
-| 403 `sesion_temporal_limitada` | Banda amarilla y mensaje «Este acceso es sólo para la evaluación» |
+| 403 `debe_cambiar_credencial` | Navega a la pantalla de cambio de clave |
+| 403 `sesion_temporal_limitada` | Banda amarilla; «Este acceso es sólo para la evaluación» |
+| 403 `sin_permiso` | «No te corresponde.» Nunca «no existe» |
 | 423 `usuario_bloqueado` | Pantalla de espera con cuenta regresiva |
-
-### 7.3 · Orden sugerido de construcción
-
-| # | Entrega | Pantallas | Qué desbloquea |
-|---|---|---|---|
-| 1 | Cliente de acceso: sesión, cabecera automática, almacén seguro, teclados | — | Todo lo demás |
-| 2 | Student: acceso, cambio de PIN, bloqueo, banda de sesión | S1 S2 S4 S5 S6 | Que el expediente se grabe con la identidad real |
-| 3 | OPS: acceso docente y lista de estudiantes | O1 O2 O4 | Restablecer y desbloquear desde el aula |
-| 4 | Acceso temporal a examen, de punta a punta | O3 S3 | El caso de las 09:57 |
-| 5 | Alta de estudiantes e importación por lotes | O5 | Poblar un colegio de verdad |
-| 6 | Administración | A1 A2 | Colegios que sí quieren configurar |
 
 ---
 
 ## 8 · Preguntas frecuentes
 
-**¿Por qué las vistas son tan cortas?**
-Porque una vista que decide reglas es una regla atrapada en la tecnología. Al dejar la vista en «validar la forma, llamar, devolver», toda la inteligencia queda en un sitio que se puede probar sin servidor y trasladar a otro framework sin reescribirla.
+**¿Por qué una persona ya no tiene «un rol» sino «asignaciones de rol»?**
+Porque el Maestro (BR-021) contempla a la profesora que además coordina un nivel. En vez de inventar un rol «profesora-coordinadora», se le asignan dos roles, cada uno con su alcance, y elige con cuál trabaja al entrar. `Usuario.rol_id` sigue existiendo como el rol por defecto.
 
-**¿Por qué hay serializers si los casos de uso también validan?**
-Validan cosas distintas. El serializer revisa la **forma** (¿vino el campo? ¿es texto? ¿cabe?). El dominio revisa el **fondo** (¿el PIN es lo bastante fuerte? ¿esta persona puede hacer esto?). Mezclarlas es lo que hace que las reglas de negocio acaben repartidas por todo el código.
+**¿Qué diferencia hay entre una asignación de rol y una escalada?**
+La asignación es estable (puede tener vigencia, pero es «su papel»). La escalada es un permiso puntual, con motivo, que caduca en horas y que otra persona tuvo que concederle. La primera se ve en la ficha como rol; la segunda, en la auditoría como excepción.
 
-**¿Por qué los permisos no viajan dentro del pase de entrada?**
-Porque entonces revocar un permiso tardaría hasta cuatro horas en surtir efecto. Al consultarlos contra la base en cada petición, cualquier cambio es inmediato y además el pase se mantiene pequeño.
+**¿Por qué fuera de alcance responde 403 y no 404?**
+Porque el Maestro lo exige: «acceso denegado, nunca objeto inexistente». Fingir que algo no existe confunde al usuario legítimo y no protege nada que la auditoría no proteja mejor.
 
-**¿Por qué a veces responde 404 donde se esperaría 403?**
-El 403 dice «no puedes hacer esto». El 404 dice «no existe, o no es asunto tuyo». Si un profesor pregunta por un estudiante de otro curso y recibiera un 403, sabría que esa persona existe. Con el 404 no averigua nada. La regla: sin el permiso, 403; con el permiso pero fuera de alcance, 404.
+**¿Por qué el bloqueo no es una casilla?**
+Porque desbloquear borraría la evidencia. Con el registro de intentos se puede ver que María falló cinco veces el martes y que la profesora la desbloqueó.
 
-**¿Qué pasa si se corta la luz a mitad de una operación?**
-Nada queda a medias. Cada operación ocurre dentro de una transacción: al reiniciar, o está entera o es como si nunca hubiera empezado.
+**¿Por qué la inactividad no la maneja un temporizador?**
+Porque no hace falta un proceso en segundo plano: a la primera petición después del plazo, el nodo cierra la sesión y lo registra. Para quien está usando la sesión el efecto es el mismo, y el sistema es más simple.
+
+**¿Qué pasa si el equipo del aula se reinicia a mitad de clase?**
+Las sesiones están en la base, no en memoria. El pase del profesor sigue valiendo y la primera petición lo comprueba. Nadie vuelve a escribir su clave (FUN-011).
 
 **¿Se puede recuperar una clave olvidada?**
-No, y es intencional. Sólo se guarda una huella irreversible. Lo que se hace es **poner una nueva** desde el aula, que es justo lo que resuelve el problema sin depender de correo ni de internet.
+No, y es intencional. Se **pone una nueva** desde el aula, o se da un pase de examen, o se admite al alumno por su nombre y se vincula después.
 
 **¿Esto ya está en uso?**
-El backend está implementado y probado. Las rutas del expediente y de la biblioteca **siguen funcionando exactamente igual que antes**: sin pase de entrada, el visitante es anónimo. Exigir sesión en todo el sistema es una decisión pendiente (Q-34) que se activará con el interruptor `AVACOM_LMS_EXIGIR_SESION=1` cuando las pantallas de acceso estén en las apps.
+El backend está implementado y probado. Las rutas del expediente siguen funcionando igual que antes: sin pase, el visitante es anónimo. Exigir sesión en todo el sistema es la decisión Q-34.
 
 ---
 
@@ -963,18 +753,23 @@ El backend está implementado y probado. Las rutas del expediente y de la biblio
 | Palabra | En lenguaje llano |
 |---|---|
 | **Caso de uso** | Una operación completa que alguien quiere hacer, con todas sus reglas |
+| **Función (FUN)** | Lo mismo, en el vocabulario del Documento Maestro |
 | **Endpoint / ruta** | Una dirección a la que la app envía una petición |
 | **APIView** | El trozo de código que atiende esa dirección |
 | **Serializer** | El revisor de formularios: comprueba que el mensaje tenga la forma esperada |
 | **Dominio** | Las reglas de AVACOM, escritas sin depender de ninguna tecnología |
-| **Infraestructura** | Lo que guarda, lee, cifra y firma de verdad |
 | **Repositorio** | El archivo: sabe guardar y encontrar, no decide nada |
 | **Unidad de Trabajo** | La carpeta de una gestión: o se guarda entera o no se guarda |
-| **Migración** | La instrucción que monta o modifica las tablas de la base |
+| **Migración** | La instrucción que monta o reforma las tablas |
 | **JWT** | El pase de entrada sellado que se presenta en cada petición |
-| **Argon2id** | La forma de guardar claves de modo que nadie, ni nosotros, pueda leerlas |
+| **Rol efectivo** | El rol con el que se trabaja en esta sesión, elegido al entrar |
+| **Asignación de rol** | Un rol dado a una persona con un alcance (organización, nivel o grupo) y una vigencia |
+| **Escalada** | Un permiso puntual y temporal, con motivo, concedido por otra persona |
+| **Alcance** | Hasta dónde llega un permiso: uno mismo, sus grupos, su nivel o todo el colegio |
+| **Provisional** | Una cuenta creada por el profesor «por el nombre», pendiente de vincular con la definitiva |
+| **Identificador externo** | Matrícula, documento, correo o clave emitida por el nodo; lo que vincula a la misma persona entre nodos |
+| **Argon2id** | La forma de guardar claves de modo que nadie pueda leerlas |
 | **AES-256-GCM** | El cifrado de los datos personales, que sí se pueden volver a leer |
 | **HMAC** | Una huella fija de un dato cifrado, que permite buscarlo sin descifrarlo |
-| **Alcance** | Hasta dónde llega un permiso: uno mismo, sus grupos o todo el colegio |
-| **Outbox** | La bandeja de salida: avisos guardados por si algún día hay que sincronizar |
+| **Outbox** | La bandeja de salida: avisos `identidad.*.v1` guardados por si hay que sincronizar |
 | **Idempotente** | Que repetirlo no cambia el resultado ni duplica nada |

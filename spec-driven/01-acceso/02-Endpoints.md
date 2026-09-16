@@ -2,11 +2,11 @@
 
 | Campo | Valor |
 |---|---|
-| Prefijo | `/api/acceso/` (incluido desde `avacom_lms/urls.py`) |
+| Prefijo | `/api/acceso/` (incluido desde `avacom_lms/urls.py`) · 32 rutas |
 | Estilo | `APIView` de DRF, JSON, sin `ModelSerializer` hacia el dominio: las vistas traducen HTTP ↔ casos de uso |
-| Autenticación | `Authorization: Bearer <JWT>`; la clase `AutenticacionJwt` resuelve la sesión y construye un `Principal` |
-| Autorización | Cada vista declara `permiso` y calcula el `objetivo`; la decisión la toma `PoliticaAutorizacion` (dominio), nunca la vista |
-| Modelo | [01 · Modelado de datos](01-modelado-datos.md) |
+| Autenticación | `Authorization: Bearer <JWT>`; la clase `AutenticacionJwt` resuelve la sesión (única, con rol efectivo, sujeta a inactividad) y construye un `Principal` |
+| Autorización | Cada vista declara `permiso` (`identity.*`) y calcula el `objetivo`; la decisión la toma `PoliticaAutorizacion` (dominio), nunca la vista |
+| Modelo | [01 · Modelado de datos](01-modelado-datos.md) · Alineación: [04 · Lineamientos](04-Lineamientos-Al-Documento-Maestro.md) |
 | Estado | Implementado en `backend/acceso/interfaces/` con pruebas en `backend/acceso/tests/` |
 
 ---
@@ -15,8 +15,6 @@
 
 ### 0.1 · Respuestas de error
 
-Todas las rutas devuelven errores con la misma forma:
-
 ```json
 { "detail": "Texto legible para el docente", "codigo": "credenciales_invalidas" }
 ```
@@ -24,29 +22,26 @@ Todas las rutas devuelven errores con la misma forma:
 | HTTP | `codigo` | Cuándo |
 |---|---|---|
 | 400 | `datos_invalidos`, `secreto_debil`, `identificador_duplicado`, `politica_invalida` | Validación de entrada o de reglas de dominio |
-| 401 | `sesion_requerida`, `sesion_invalida`, `sesion_expirada`, `sesion_revocada`, `credenciales_invalidas` | Sin token, token inválido o login fallido. Se envía `WWW-Authenticate: Bearer` |
-| 403 | `sin_permiso`, `debe_cambiar_credencial`, `sesion_temporal_limitada` | El actor **no tiene el permiso en absoluto** (o una regla transversal lo frena). Incluye `permiso`, `alcance_requerido` y `alcance_concedido` |
-| 404 | `no_encontrado` | Recurso inexistente, o el actor **tiene el permiso pero no alcanza a ese objetivo** (un docente sobre un estudiante de otro grupo). No se revela existencia. Otra organización siempre es 404 |
-| 409 | `conflicto`, `ya_instalado`, `autorizacion_usada` | Estado incompatible |
-| 423 | `usuario_bloqueado` | Bloqueo automático o manual. Incluye `reintentar_en_seg` cuando es automático |
+| 401 | `sesion_requerida`, `sesion_invalida`, `sesion_expirada`, `sesion_revocada`, `sesion_inactiva`, `sesion_cerrada_otro_dispositivo`, `credenciales_invalidas` | Sin pase, pase inválido, sesión cerrada (con su motivo) o login fallido. Se envía `WWW-Authenticate: Bearer` |
+| 403 | `sin_permiso`, `debe_cambiar_credencial`, `sesion_temporal_limitada` | La política denegó. **Fuera de alcance también es 403**: regla del Maestro «acceso denegado, nunca objeto inexistente». Incluye `permiso`, `alcance_requerido`, `alcance_concedido` |
+| 404 | `no_encontrado` | El recurso **no existe** |
+| 409 | `conflicto`, `ya_instalado`, `no_instalado` | Estado incompatible (p. ej. reactivar una cuenta dada de baja, BR-025) |
+| 423 | `usuario_bloqueado` | Bloqueo automático (con `reintentar_en_seg`) o manual |
 
 ### 0.2 · Fechas
 
-Todas en **milisegundos desde época** (bigint), como el resto del backend.
+Milisegundos desde época (bigint), como el resto del backend (CV-03).
 
 ### 0.3 · El `Principal`
 
-Lo que la vista recibe en `request.user` después de autenticar:
-
 ```python
-Principal(usuario_id, organizacion_id, rol_codigo, menu, nivel, sesion_id, clase_sesion, evaluacion_ref, debe_cambiar_credencial, dispositivo_id)
+Principal(usuario_id, organizacion_id, rol_id, rol_codigo, menu, nivel, sesion_id, clase_sesion,
+          debe_cambiar_credencial, dispositivo_id, evaluacion_ref)
 ```
 
-Reglas transversales aplicadas por `PoliticaAutorizacion` antes de cualquier permiso:
+`rol_id` / `rol_codigo` / `menu` son los del **rol efectivo de la sesión** (BR-021), no necesariamente el rol principal de la persona.
 
-- `debe_cambiar_credencial = true` → sólo se permiten `credential.change_own` y `session.revoke_own` (403 `debe_cambiar_credencial`).
-- `clase_sesion = TEMPORAL` → sólo `student.exam.attempt`, `student.progress.read`, `student.progress.write`, `content.read`, `results.read`, `session.revoke_own`, todos `SELF` (403 `sesion_temporal_limitada`).
-- El resto se decide con rol + permisos adicionales + alcance (§5.3 del modelado).
+Reglas transversales aplicadas antes de cualquier permiso: credencial provisional ⇒ sólo `identity.password.change_own` y `identity.session.revoke_own`; sesión `TEMPORAL` ⇒ sólo rendir la evaluación.
 
 ---
 
@@ -54,84 +49,60 @@ Reglas transversales aplicadas por `PoliticaAutorizacion` antes de cualquier per
 
 ### 1.1 · `GET /api/acceso/configuracion/`
 
-Lo que la tableta necesita para pintar la pantalla de acceso. **Sin PII.**
+Lo que la tableta necesita para pintar PAN-101. **Sin PII.** Incluye las excepciones por nivel educativo (BR-024).
 
 ```json
 {
   "instalado": true,
-  "organizacion": { "id": "…", "codigo": "IE-SANJOSE", "nombre": "IE San José", "pais": "CO", "idioma": "es", "locale": "es-CO" },
+  "organizacion": { "codigo": "IE-SANJOSE", "nombre": "IE San José", "pais": "CO", "idioma": "es", "locale": "es-CO" },
   "perfiles": {
-    "student": { "tipo_identificador": "CODIGO_ESTUDIANTIL", "tipo_secreto": "PIN", "longitud_minima": 6, "permite_acceso_temporal": true },
-    "teacher": { "tipo_identificador": "DNI", "tipo_secreto": "PASSWORD", "longitud_minima": 8, "permite_acceso_temporal": false },
-    "admin":   { "tipo_identificador": "DNI", "tipo_secreto": "PASSWORD", "longitud_minima": 12, "permite_acceso_temporal": false }
+    "student": { "tipo_identificador": "CODIGO_ESTUDIANTIL", "tipo_secreto": "PIN", "longitud_minima": 6,
+                 "permite_acceso_temporal": true, "inactividad_min": 30,
+                 "niveles": { "preescolar": { "tipo_identificador": "CODIGO_ESTUDIANTIL", "tipo_secreto": "AVATAR", "longitud_minima": 4, "permite_acceso_temporal": true, "inactividad_min": 30 } } },
+    "teacher": { "tipo_identificador": "DNI", "tipo_secreto": "PASSWORD", "longitud_minima": 8, "permite_acceso_temporal": false, "inactividad_min": 20, "niveles": {} },
+    "admin": { "...": "..." }, "reports": { "...": "..." }, "technician": { "...": "..." }
   },
-  "duracion_sesion_min": 240,
+  "duracion_sesion_min": 240, "inactividad_min": 30,
+  "niveles_educativos": ["preescolar", "primaria", "secundaria", "bachillerato", "preuniversitario"],
   "claves_derivadas": false
 }
 ```
 
-`instalado = false` significa que aún no hay organización: el cliente debe ofrecer §1.2. `claves_derivadas = true` avisa de que las claves de cifrado se derivaron de `SECRET_KEY` (Q-35).
-
 ### 1.2 · `POST /api/acceso/instalacion/`
 
-Primer arranque. Sólo funciona **mientras no exista ninguna organización** (409 `ya_instalado` después). Crea organización, políticas sembradas y el primer administrador. Caso de uso `InstalarNodo`.
-
-```json
-{
-  "organizacion": { "codigo": "IE-SANJOSE", "nombre": "IE San José", "pais": "CO", "idioma": "es", "locale": "es-CO", "zona_horaria": "America/Bogota" },
-  "administrador": { "alias": "Rectoría", "nombres": "Ana", "apellidos": "Pérez", "dni": "1042888795", "password": "Rectoria.2026!" }
-}
-```
-
-→ `201` `{ "organizacion": {…}, "administrador": { "id": "…", "alias": "Rectoría" } }`. Si `password` se omite, se genera una y se devuelve **una sola vez** en `password_inicial`.
+Primer arranque (JRN-001). Sólo mientras no exista organización (409 `ya_instalado` después). Crea organización, las cinco políticas por perfil y el primer administrador. Devuelve `password_inicial` **una sola vez** si no se envió contraseña (PAN-204).
 
 ### 1.3 · `POST /api/acceso/dispositivos/`
 
-Registro idempotente de la tableta o del nodo principal (por `identificador`).
+Registro idempotente de la tableta: `{ "identificador", "nombre", "tipo" }` → 201 la primera vez, 200 después.
+
+### 1.4 · `POST /api/acceso/sesiones/` · Autenticar (FUN-004, FUN-005)
 
 ```json
-{ "identificador": "a8f3…-tablet", "nombre": "tableta-07", "tipo": "TABLETA" }
+{ "identificador": "122499", "secreto": "691302", "dispositivo": "a8f3…", "rol": "" }
 ```
 
-→ `201` la primera vez, `200` después: `{ "id": "…", "nombre": "tableta-07", "tipo": "TABLETA", "activo": true }`.
-
-### 1.4 · `POST /api/acceso/sesiones/` · Autenticar usuario
-
-```json
-{ "identificador": "122499", "secreto": "691302", "dispositivo": "a8f3…-tablet" }
-```
-
-Reglas: se normaliza el identificador, se busca por HMAC, se comprueba que el **tipo** de identificador está permitido por la política del perfil (o del grupo), se verifica Argon2id, se aplica `PoliticaBloqueo`, se registra `m01_intento_acceso`, se emite el JWT y se crea `m01_sesion`.
+`rol` es opcional: si la persona tiene varios roles vigentes elige con cuál trabaja (BR-021); si se omite, entra con su rol principal.
 
 → `200`
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzI1NiIs…",
-  "tipo": "Bearer",
-  "expira_en": 1789014400000,
-  "sesion_id": "…",
-  "usuario": { "id": "…", "alias": "Juan P.", "rol": "STUDENT", "menu": "student", "nivel": 1, "debe_cambiar_credencial": false }
+  "token": "eyJ…", "tipo": "Bearer", "expira_en": 1789014400000, "sesion_id": "…", "inactividad_min": 30,
+  "sesion_anterior": { "sesion_id": "…", "dispositivo": "tableta-03", "emitida_en": 1789000000000, "cerrada_en": 1789000600000 },
+  "roles_disponibles": ["STUDENT"],
+  "usuario": { "id": "…", "alias": "Juan P.", "rol": "STUDENT", "menu": "student", "nivel": 1,
+               "debe_cambiar_credencial": false, "clase_sesion": "NORMAL", "evaluacion_ref": null, "provisional": false }
 }
 ```
 
-Errores: `401 credenciales_invalidas` (mismo mensaje y mismo tiempo de respuesta para usuario inexistente, tipo no permitido y secreto incorrecto), `423 usuario_bloqueado` con `reintentar_en_seg`.
+**Sesión única.** Si la persona tenía otra sesión abierta, se cierra con motivo `otro_dispositivo` y `sesion_anterior` trae de dónde se cerró, para mostrar PAN-103 / MSG-020. Si otra persona tenía sesión en esta misma tableta, se cierra con `dispositivo_compartido` (INV-011). Si no había nada que cerrar, `sesion_anterior` es `null`.
 
-### 1.5 · `POST /api/acceso/autorizaciones-temporales/canjear/` · Canjear acceso temporal
+Errores: `401 credenciales_invalidas` (mismo mensaje y coste para inexistente, tipo no permitido, rol no asignado y secreto incorrecto; trae `intentos_restantes`), `423 usuario_bloqueado` con `reintentar_en_seg` (FUN-007).
 
-Opción B (código que el docente le dicta al estudiante):
+### 1.5 · `POST /api/acceso/autorizaciones-temporales/canjear/`
 
-```json
-{ "codigo": "834195", "dispositivo": "a8f3…-tablet" }
-```
-
-Opción A (la tableta recibió `grant_id` + `token` del nodo):
-
-```json
-{ "grant_id": "…", "token": "b64url-256-bits", "dispositivo": "a8f3…-tablet" }
-```
-
-→ `200` misma forma que §1.4 con `usuario.clase_sesion = "TEMPORAL"` y `evaluacion_ref` si la autorización lo fijó. Errores: `401 credenciales_invalidas` (código incorrecto, caducado, ya usado, otra tableta); al tercer fallo la autorización queda revocada y el docente ve `revocada_en`.
+Opción B: `{ "codigo": "834195", "dispositivo": "…" }`. Opción A: `{ "grant_id": "…", "token": "…", "dispositivo": "…" }`. → `200` como §1.4 con `clase_sesion: "TEMPORAL"`.
 
 ---
 
@@ -141,28 +112,26 @@ Opción A (la tableta recibió `grant_id` + `token` del nodo):
 
 ```json
 {
-  "usuario": { "id": "…", "alias": "Prof. Gómez", "rol": "TEACHER", "menu": "teacher", "nivel": 2, "idioma": "es", "estado": "ACTIVO",
-               "persona": { "nombres": "Luis", "apellidos": "Gómez" } },
-  "permisos": [ { "codigo": "student.progress.read", "alcance": "ASSIGNED_GROUPS", "origen": "rol" },
-                { "codigo": "audit.read", "alcance": "ORGANIZATION", "origen": "adicional", "vigente_hasta": 1791000000000 } ],
-  "grupos": [ { "id": "…", "codigo": "8A", "nombre": "Octavo A", "periodo": "2026", "papel": "DOCENTE" } ],
-  "sesion": { "id": "…", "clase": "NORMAL", "expira_en": 1789014400000, "evaluacion_ref": null, "dispositivo": "master" }
+  "usuario": { "id": "…", "alias": "Prof. Gómez", "rol": "TEACHER", "menu": "teacher", "nivel": 2, "estado": "ACTIVO",
+               "provisional": false, "nivel_educativo": null, "persona": { "nombres": "Luis", "apellidos": "Gómez" } },
+  "identificadores": [ { "tipo": "DNI", "valor": "80123456", "es_login": true, "emisor": "IE-SANJOSE", "principal": true } ],
+  "rol_efectivo": { "codigo": "TEACHER", "menu": "teacher", "alcance_asignacion": "ORGANIZATION" },
+  "roles_disponibles": [ { "id": "…", "rol": "TEACHER", "menu": "teacher", "alcance_tipo": "ORGANIZATION", "alcance_id": null, "desde": 1789000000000, "hasta": null },
+                         { "id": "…", "rol": "REPORTS", "menu": "reports", "alcance_tipo": "LEVEL", "alcance_id": "secundaria", "desde": 1789000000000, "hasta": 1791000000000 } ],
+  "permisos": [ { "codigo": "identity.password.reset", "alcance": "ASSIGNED_GROUPS", "origen": "rol", "vigente_hasta": null },
+                { "codigo": "audit.read", "alcance": "ORGANIZATION", "origen": "adicional", "vigente_hasta": 1789014400000 } ],
+  "grupos": [ { "id": "…", "codigo": "8A", "nombre": "Octavo A", "periodo": "2026", "nivel_clave": "secundaria", "papel": "DOCENTE" } ],
+  "sesion": { "id": "…", "clase": "NORMAL", "rol": "TEACHER", "expira_en": 1789014400000, "dispositivo": "master", "motivo_cierre": null }
 }
 ```
 
-Es la única fuente que el cliente MAUI usa para decidir qué hexágonos mostrar.
+### 2.2 · `PUT /api/acceso/yo/credencial/`
 
-### 2.2 · `PUT /api/acceso/yo/credencial/` · Cambiar credencial propia
+`{ "secreto_actual", "secreto_nuevo" }`. Permiso `identity.password.change_own`. Revoca las demás sesiones con motivo `credencial_cambiada`.
 
-```json
-{ "secreto_actual": "691302", "secreto_nuevo": "480215" }
-```
+### 2.3 · `DELETE /api/acceso/sesiones/actual/`
 
-Valida `PoliticaFortaleza` según la política vigente del usuario, rechaza las últimas 3 credenciales, limpia `debe_cambiar`, **revoca las demás sesiones** (`credencial_cambiada`) y conserva la actual. → `200 { "cambiada": true, "sesiones_revocadas": 1 }`. Permiso `credential.change_own`.
-
-### 2.3 · `DELETE /api/acceso/sesiones/actual/` · Cerrar sesión
-
-→ `204`. Permiso `session.revoke_own`.
+→ `204`. Motivo `persona`.
 
 ---
 
@@ -170,114 +139,99 @@ Valida `PoliticaFortaleza` según la política vigente del usuario, rechaza las 
 
 | Ruta | Verbo | Permiso · objetivo | Nota |
 |---|---|---|---|
-| `/api/acceso/sesiones/?usuario=<id>&activas=1` | GET | `session.read` · el usuario filtrado (o la organización si no hay filtro) | Lista `id, usuario_id, alias, dispositivo, clase, emitida_en, expira_en, ultimo_uso_en, revocada_en` |
-| `/api/acceso/sesiones/{id}/` | DELETE | `session.revoke` · dueño de la sesión | Caso de uso `RevocarSesion`. `motivo_revocacion` = `docente` o `administrador` según el nivel del actor. Idempotente: `204` aunque ya estuviera revocada |
+| `/api/acceso/sesiones/?usuario=<id>&todas=1` | GET | `identity.session.read` | Cada fila trae `rol` (efectivo), `dispositivo`, `motivo_cierre` |
+| `/api/acceso/sesiones/{id}/` | DELETE | `identity.session.revoke` · dueño | Motivo `profesor` o `administrador` según el nivel del actor |
+| `/api/acceso/usuarios/{id}/sesiones/` | DELETE | `identity.session.revoke` · el usuario | **FUN-010**: revoca todas. → `200 { "sesiones_revocadas": n }` |
 
 ---
 
 ## 4 · Usuarios
 
-### 4.1 · `GET /api/acceso/usuarios/?grupo=<id>&rol=STUDENT&estado=ACTIVO`
+### 4.1 · `GET /api/acceso/usuarios/?grupo=…&rol=STUDENT&estado=ACTIVO`
 
-Permiso `user.read`. Con alcance `ASSIGNED_GROUPS` sólo aparecen estudiantes de los grupos del docente; el filtro `grupo` fuera de alcance devuelve `404`. La PII (`persona`) se descifra sólo para quien tiene `user.read` sobre ese usuario.
+Permiso `identity.user.read`. La lista se recorta por alcance (propio, sus grupos, su nivel, organización). Cada fila trae `roles` (asignaciones vigentes), `provisional`, `nivel_educativo`, `bloqueado_hasta`, `debe_cambiar_credencial`, `tipo_secreto` e `identificadores` con `emisor` y `principal`.
 
-```json
-[ { "id": "…", "alias": "Juan P.", "rol": "STUDENT", "menu": "student", "estado": "ACTIVO",
-    "bloqueado_hasta": null, "debe_cambiar_credencial": false, "ultimo_acceso_en": 1788990000000,
-    "persona": { "nombres": "Juan", "apellidos": "Pérez" },
-    "identificadores": [ { "tipo": "CODIGO_ESTUDIANTIL", "valor": "122499", "es_login": true } ],
-    "grupos": [ { "id": "…", "codigo": "8A", "papel": "ESTUDIANTE" } ] } ]
-```
-
-### 4.2 · `POST /api/acceso/usuarios/` · Crear usuario
-
-Permiso `user.create`. Un docente (`ASSIGNED_GROUPS`) sólo puede crear estudiantes y **debe** indicar un `grupo_id` propio; el estudiante queda inscrito en él en la misma transacción.
+### 4.2 · `POST /api/acceso/usuarios/` · Crear usuario (FUN-001)
 
 ```json
 {
-  "rol": "STUDENT",
-  "alias": "Juan P.",
-  "idioma": "es",
-  "persona": { "nombres": "Juan", "apellidos": "Pérez", "fecha_nacimiento": "2012-04-09", "pais": "CO" },
-  "identificadores": [ { "tipo": "CODIGO_ESTUDIANTIL", "valor": "122499", "es_login": true },
+  "rol": "STUDENT", "alias": "Juan P.",
+  "persona": { "nombres": "Juan", "apellidos": "Pérez", "fecha_nacimiento": "2012-04-09" },
+  "identificadores": [ { "tipo": "CODIGO_ESTUDIANTIL", "valor": "122499", "es_login": true, "principal": true },
                        { "tipo": "DNI", "valor": "1.020.334.556", "es_login": false } ],
-  "secreto": "691302",
-  "grupo_id": "…"
+  "secreto": "691302", "secreto_definitivo": true, "grupo_id": "…"
 }
 ```
 
-→ `201` con la forma de §4.1 más `secreto_inicial` **sólo si el servidor lo generó** (cuando `secreto` se omite). La credencial nace con `debe_cambiar = true` cuando la estableció otra persona, salvo que quien la crea envíe `"secreto_definitivo": true` junto con un `secreto` explícito (colegios que prefieren PIN fijo asignado por el docente a estudiantes pequeños).
+- `identificadores` puede omitirse: el nodo emite una `CLAVE_INSTALACION` (DEC-049). `emisor` por defecto es el código de la organización; si nadie marca `principal`, lo es el primero de login.
+- **Admisión nominal (JRN-007, MSG-023)**: `{ "rol": "STUDENT", "alias": "Lucía", "provisional": true, "grupo_id": "…" }`, sin identificadores ni persona. Crea una cuenta provisional con clave de instalación; se cierra con §4.4.
+- El docente (`ASSIGNED_GROUPS`) sólo crea estudiantes y debe indicar un grupo propio. La inscripción se hace **antes** de fijar la credencial, porque el grupo o su nivel pueden cambiar el reglamento (avatar en preescolar).
+- → `201` con `secreto_inicial` si se generó. La credencial nace provisional salvo `secreto_definitivo: true`.
 
-Errores: `400 secreto_debil` (con `reglas` incumplidas), `400 identificador_duplicado`, `403 sin_permiso` (docente intentando crear un docente).
+### 4.3 · `POST /api/acceso/usuarios/importar/` · Importar usuarios (FUN-003, CAP-003)
 
-### 4.3 · `GET /api/acceso/usuarios/{id}/` · `PATCH /api/acceso/usuarios/{id}/`
+```json
+{ "contenido": "rol,alias,nombres,apellidos,tipo_identificador,identificador,grupo,secreto\nSTUDENT,,Carlos,Torres,CODIGO_ESTUDIANTIL,150001,8A,\n…",
+  "delimitador": ",", "grupo_id": "" }
+```
 
-`user.read` / `user.update`. El `PATCH` acepta `alias`, `idioma`, `estado` (`ACTIVO`, `SUSPENDIDO`, `RETIRADO`; `BLOQUEADO` manual sólo con `user.unlock`), `persona` parcial e `identificadores` (reemplazo completo de la lista). Cambiar `estado` a algo distinto de `ACTIVO` revoca las sesiones.
+También acepta `filas: [ {…}, … ]` ya parseadas. Permiso `identity.user.import` (organización). Precondición del Maestro: el archivo pasa la validación de columnas (si no, `400` con `columnas_esperadas`).
 
-### 4.4 · `PUT /api/acceso/usuarios/{id}/rol/` · Asignar rol
+→ `200`
 
-Permiso `user.role.assign` (sólo `ORGANIZATION`). `{ "rol": "TEACHER" }`. El actor no puede asignar un rol de nivel superior al suyo. Revoca las sesiones del usuario (el menú cambia). Caso de uso `AsignarRol`.
+```json
+{ "resumen": { "total": 5, "creados": 3, "existentes": 1, "rechazadas": 1 },
+  "creados": [ { "fila": 1, "id": "…", "alias": "Carlos T.", "identificador": "150001", "grupo": "8A", "secreto_inicial": "204915" } ],
+  "existentes": [ { "fila": 3, "id": "…", "alias": "Juan P.", "identificador": "122499" } ],
+  "rechazadas": [ { "fila": 4, "motivo": "El grupo NO-EXISTE no existe.", "codigo": "datos_invalidos", "identificador": "150003" } ] }
+```
 
-### 4.5 · Permisos adicionales
+Un identificador ya existente **fusiona**: no duplica la persona. El lote es una sola transacción; las rechazadas no lo abortan (MSG-065). Mismo caso de uso que `manage.py acceso_importar padron.csv --actor-dni …`.
+
+### 4.4 · `POST /api/acceso/usuarios/{id}/vincular/`
+
+`{ "usuario_definitivo_id": "…" }`. Permiso `identity.user.update` sobre ambas. La provisional pasa a `RETIRADO` con `vinculado_a`, sus sesiones se cierran. → `200 { "provisional_id", "definitivo_id", "sesiones_revocadas" }`. `409` si no es provisional.
+
+### 4.5 · `GET` · `PATCH /api/acceso/usuarios/{id}/`
+
+`PATCH` acepta `alias`, `idioma`, `estado` (`ACTIVO`/`SUSPENDIDO`/`RETIRADO`), `persona`, `identificadores` (reemplazo: los anteriores se **retiran**, no se borran). Salir de `ACTIVO` revoca sesiones (`estado_cuenta`). **BR-025**: de `RETIRADO` no se vuelve (409).
+
+### 4.6 · Roles (FUN-002)
 
 | Ruta | Verbo | Permiso | Cuerpo / respuesta |
 |---|---|---|---|
-| `/api/acceso/usuarios/{id}/permisos/` | GET | `user.read` | Lista de `m01_usuario_permiso` vigentes y revocados |
-| `/api/acceso/usuarios/{id}/permisos/` | POST | `user.permission.grant` | `{ "permiso": "audit.read", "alcance": "ORGANIZATION", "motivo": "Coordinador académico 2026", "vigente_hasta": 1791000000000 }` → `201`. El alcance no puede superar `alcance_maximo` del permiso ni el alcance que el propio actor tiene sobre él |
-| `/api/acceso/usuarios/{id}/permisos/{permiso}/` | DELETE | `user.permission.grant` | Sella `revocado_en` → `204` |
+| `/api/acceso/usuarios/{id}/roles/` | GET | `identity.user.read` | Asignaciones vigentes con `alcance_tipo`, `alcance_id`, `desde`, `hasta` |
+| `/api/acceso/usuarios/{id}/roles/` | POST | `identity.role.assign` | `{ "rol": "REPORTS", "alcance_tipo": "LEVEL", "alcance_id": "secundaria", "vigente_hasta": 1791000000000, "principal": false }` → `201`. El actor no puede asignar un nivel superior al suyo ni un alcance mayor que el de su propia asignación. `principal: true` cambia el rol por defecto y revoca sesiones (`rol_cambiado`) |
+| `/api/acceso/usuarios/{id}/rol/` | PUT | `identity.role.assign` | Compatibilidad: fija el rol principal con alcance de organización |
+| `/api/acceso/usuarios/{id}/roles/{asignacion_id}/` | DELETE | `identity.role.assign` | Revoca la asignación; nunca deja a la persona sin rol (409) |
 
-### 4.6 · `POST /api/acceso/usuarios/{id}/credencial/restablecer/` · Restablecer credencial
+CAP-006 (suplente): `POST …/roles/` con `rol: "TEACHER"`, `alcance_tipo: "ASSIGNED_GROUPS"`, `alcance_id: <grupo>`, `vigente_hasta: <fin>`.
 
-Permiso `credential.reset`. Es la **recuperación real**: el profesor establece un secreto provisional desde el aula.
+### 4.7 · Escaladas temporales (BR-101)
 
-```json
-{ "secreto": "204915" }
-```
+| Ruta | Verbo | Permiso | Cuerpo / respuesta |
+|---|---|---|---|
+| `/api/acceso/usuarios/{id}/escaladas/` | GET | `identity.user.read` | Vigentes y revocadas |
+| `/api/acceso/usuarios/{id}/escaladas/` | POST | `identity.escalation.grant` | `{ "permiso": "audit.read", "alcance": "ORGANIZATION", "motivo": "Coordinadora académica 2026", "vigente_hasta": 1789014400000 }` → `201`. `vigente_hasta` **obligatorio**, máximo 24 h; el alcance no supera el techo del permiso ni el del actor; **no hay autoconcesión** (403) |
+| `/api/acceso/usuarios/{id}/escaladas/{permiso}/` | DELETE | `identity.escalation.grant` | → `204` |
 
-`secreto` es opcional: si falta, el servidor genera un PIN o contraseña según la política del usuario. → `200 { "secreto_provisional": "204915", "debe_cambiar": true, "sesiones_revocadas": 2 }`. El secreto se devuelve **una sola vez** y no queda en ningún registro. Caso de uso `RestablecerCredencial`.
+### 4.8 · `POST /api/acceso/usuarios/{id}/credencial/restablecer/` (FUN-006, CAP-004)
 
-### 4.7 · `POST /api/acceso/usuarios/{id}/desbloquear/` · Desbloquear usuario
+Permiso `identity.password.reset`. `{ "secreto": "204915" }` opcional. → `200 { "secreto_provisional", "tipo_secreto", "debe_cambiar": true, "sesiones_revocadas" }`. Se devuelve **una sola vez**.
 
-Permiso `user.unlock`. Inserta `DESBLOQUEO` en `m01_intento_acceso` (reinicia la cuenta de fallos) y, si el estado era `BLOQUEADO`, lo pasa a `ACTIVO`. → `200 { "estado": "ACTIVO", "bloqueado_hasta": null }`. Caso de uso `DesbloquearUsuario`.
+### 4.9 · `POST /api/acceso/usuarios/{id}/desbloquear/` (FUN-008)
+
+Permiso `identity.user.unlock`. → `200 { "estado": "ACTIVO", "bloqueado_hasta": null }`.
 
 ---
 
 ## 5 · Acceso temporal a examen
 
-### 5.1 · `POST /api/acceso/autorizaciones-temporales/` · Otorgar acceso temporal
-
-Permiso `exam.temporary_access.grant` sobre el estudiante. La política del perfil del estudiante debe tener `permite_acceso_temporal`.
-
-Opción A · autorizar la tableta:
-
-```json
-{ "usuario_id": "…", "tipo": "DISPOSITIVO", "dispositivo_id": "…", "evaluacion_ref": "co-sec-mat-eval-08", "minutos": 5, "motivo": "Olvidó el PIN antes del parcial" }
-```
-
-→ `201`
-
-```json
-{ "id": "…", "tipo": "DISPOSITIVO", "expira_en": 1789000300000, "dispositivo": { "id": "…", "nombre": "tableta-07" },
-  "entrega": { "grant_id": "…", "token": "b64url-256-bits" } }
-```
-
-`entrega` es lo que el nodo principal envía a la tableta (por el canal de aula ya existente); el estudiante no tiene que recordar nada.
-
-Opción B · código para dictar:
-
-```json
-{ "usuario_id": "…", "tipo": "CODIGO", "evaluacion_ref": "co-sec-mat-eval-08", "minutos": 5, "motivo": "…" }
-```
-
-→ `201 { "id": "…", "tipo": "CODIGO", "expira_en": …, "entrega": { "codigo": "834195" } }`. El código sólo existe en esa respuesta; la base guarda Argon2id.
-
-### 5.2 · `GET /api/acceso/autorizaciones-temporales/?usuario=<id>&vigentes=1`
-
-Permiso `exam.temporary_access.grant`. Lista sin secretos: `id, usuario_id, alias, tipo, dispositivo, evaluacion_ref, creada_en, expira_en, usada_en, revocada_en, sesion_id`.
-
-### 5.3 · `DELETE /api/acceso/autorizaciones-temporales/{id}/`
-
-Revoca la autorización y, si ya produjo una sesión `TEMPORAL`, también la sesión. → `204`.
+| Ruta | Verbo | Permiso | Nota |
+|---|---|---|---|
+| `/api/acceso/autorizaciones-temporales/` | POST | `identity.exam_access.grant` | `{ "usuario_id", "tipo": "DISPOSITIVO" \| "CODIGO", "dispositivo_id"?, "evaluacion_ref"?, "minutos": 5, "motivo" }` → `201` con `entrega` (`{grant_id, token}` o `{codigo}`) |
+| `/api/acceso/autorizaciones-temporales/?usuario=…&vigentes=1` | GET | `identity.exam_access.grant` | Sin secretos |
+| `/api/acceso/autorizaciones-temporales/{id}/` | DELETE | `identity.exam_access.grant` | Revoca el pase y, si produjo sesión, la cierra (`profesor`) |
 
 ---
 
@@ -285,17 +239,16 @@ Revoca la autorización y, si ya produjo una sesión `TEMPORAL`, también la ses
 
 | Ruta | Verbo | Permiso | Nota |
 |---|---|---|---|
-| `/api/acceso/roles/` | GET | `role.read` | Plantillas de sistema + roles del colegio, cada uno con `permisos: [{codigo, alcance}]` |
-| `/api/acceso/roles/` | POST | `role.manage` | `{ "codigo": "COORDINADOR", "nombre": "…", "plantilla": "TEACHER", "menu_principal": "teacher", "nivel": 2, "permisos": [ { "codigo": "audit.read", "alcance": "ORGANIZATION" } ] }` clona la plantilla y aplica los cambios |
-| `/api/acceso/permisos/` | GET | `role.read` | Catálogo con `alcance_maximo` |
-| `/api/acceso/politicas/` | GET | `policy.manage` | Las tres políticas de la organización |
-| `/api/acceso/politicas/{perfil}/` | PUT | `policy.manage` | Cuerpo con las columnas de `m01_politica_credencial`. Caso de uso `ConfigurarPolitica`; valida coherencia (`PIN` ⇒ 4..8 dígitos) |
-| `/api/acceso/grupos/` | GET, POST | `group.read` / `group.manage` | `{ "codigo": "8A", "nombre": "Octavo A", "periodo": "2026", "politica_credencial_id": null }` |
-| `/api/acceso/grupos/{id}/` | GET, PATCH | `group.read` / `group.manage` | Detalle con `miembros` |
-| `/api/acceso/grupos/{id}/miembros/` | POST | `group.member.manage` | `{ "usuario_id": "…", "papel": "ESTUDIANTE" }` → `201`. Un docente sólo añade estudiantes a sus propios grupos |
-| `/api/acceso/grupos/{id}/miembros/{usuario_id}/` | DELETE | `group.member.manage` | Sella `hasta` → `204` |
-| `/api/acceso/dispositivos/` | GET | `exam.temporary_access.grant` o `device.manage` | Tabletas activas para elegir a cuál autorizar |
-| `/api/acceso/dispositivos/{id}/` | PATCH | `device.manage` | `{ "activo": false, "nombre": "…" }` |
+| `/api/acceso/roles/` | GET | `identity.role.read` | Los cinco de sistema + los del colegio |
+| `/api/acceso/roles/` | POST | `identity.role.manage` | Clona una plantilla y ajusta `permisos: [{codigo, alcance}]` |
+| `/api/acceso/permisos/` | GET | `identity.role.read` | Catálogo con `alcance_maximo` y `sensible` |
+| `/api/acceso/politicas/` | GET | `identity.policy.manage` | Generales y por nivel |
+| `/api/acceso/politicas/{perfil}/` | PUT | `identity.policy.manage` | Columnas de la política, incl. `inactividad_min`. **`?nivel=preescolar`** crea o edita la excepción del nivel (BR-024) |
+| `/api/acceso/grupos/` | GET, POST | `identity.group.read` / `identity.group.manage` | `{ "codigo", "nombre", "periodo", "nivel_clave"?, "politica_credencial_id"? }` |
+| `/api/acceso/grupos/{id}/` | GET, PATCH | idem | Detalle con `miembros` (incluye `provisional`) |
+| `/api/acceso/grupos/{id}/miembros/` · `…/{usuario_id}/` | POST, DELETE | `identity.group.member.manage` | Un docente sólo añade o retira estudiantes de sus grupos |
+| `/api/acceso/dispositivos/` | GET | `identity.exam_access.grant` o `identity.device.manage` | |
+| `/api/acceso/dispositivos/{id}/` | PATCH | `identity.device.manage` | Dar de baja cierra sus sesiones (`dispositivo_baja`) |
 
 ---
 
@@ -303,47 +256,51 @@ Revoca la autorización y, si ya produjo una sesión `TEMPORAL`, también la ses
 
 | Elemento | Cambio |
 |---|---|
-| `REST_FRAMEWORK.DEFAULT_AUTHENTICATION_CLASSES` | Se añade `acceso.interfaces.autenticacion.AutenticacionJwt`. Sin cabecera devuelve `None` (anónimo), así que las rutas del expediente **no cambian de comportamiento** |
-| `AVACOM_LMS_EXIGIR_SESION` | `0` por defecto. Con `1`, las vistas del expediente y de la biblioteca exigen `Principal` (Q-34). Preparado en `acceso.interfaces.permisos.SesionSiSeExige` |
-| `/health/` | Añade `"acceso": { "instalado": true, "claves_derivadas": false }` |
-| `m19_auditoria` | Recibe acciones `acceso.sesion.iniciada`, `acceso.sesion.fallida`, `acceso.usuario.bloqueado`, `acceso.usuario.desbloqueado`, `acceso.credencial.restablecida`, `acceso.credencial.cambiada`, `acceso.rol.asignado`, `acceso.permiso.otorgado`, `acceso.permiso.revocado`, `acceso.acceso_temporal.otorgado`, `acceso.acceso_temporal.canjeado`, `acceso.acceso_temporal.revocado`, `acceso.sesion.revocada`, `acceso.usuario.creado`, `acceso.instalacion` |
-| `requirements.txt` | `argon2-cffi`, `cryptography`, `PyJWT`; el instalador copia las mismas versiones a `requirements-runtime.txt` |
-| Comando | `manage.py acceso_instalar --codigo IE-SANJOSE --nombre "IE San José" --pais CO --admin-dni … [--admin-password …]` ejecuta el mismo caso de uso que §1.2 |
+| `REST_FRAMEWORK.DEFAULT_AUTHENTICATION_CLASSES` | `acceso.interfaces.autenticacion.AutenticacionJwt`. Sin cabecera → anónimo; las rutas del expediente no cambian |
+| `AVACOM_LMS_EXIGIR_SESION` | `0` por defecto (Q-34) |
+| `/health/` | `"acceso": { "instalado", "claves_derivadas" }` |
+| `m19_auditoria` | Acciones `identidad.*` (sesión abierta/cerrada, cuenta bloqueada/desbloqueada, credencial, rol, escalada, importación, vinculación…) |
+| Comandos | `acceso_instalar` (§1.2) y `acceso_importar` (§4.3) |
 
 ---
 
-## 8 · Trazabilidad casos de uso ↔ rutas
+## 8 · Trazabilidad casos de uso ↔ rutas ↔ Maestro
 
-| Caso de uso | Ruta |
-|---|---|
-| `InstalarNodo` | §1.2 y el comando |
-| `RegistrarDispositivo` | §1.3 |
-| `AutenticarUsuario` | §1.4 |
-| `CanjearAccesoTemporal` | §1.5 |
-| `ConsultarIdentidad` | §2.1 |
-| `CambiarCredencialPropia` | §2.2 |
-| `RevocarSesion` | §2.3, §3, §5.3 |
-| `CrearUsuario` | §4.2 |
-| `ActualizarUsuario` | §4.3 |
-| `AsignarRol` | §4.4 |
-| `OtorgarPermiso` / `RevocarPermiso` | §4.5 |
-| `RestablecerCredencial` | §4.6 |
-| `DesbloquearUsuario` | §4.7 |
-| `OtorgarAccesoTemporal` / `RevocarAccesoTemporal` | §5.1, §5.3 |
-| `CrearRol` | §6 roles POST |
-| `ConfigurarPolitica` | §6 políticas PUT |
-| `CrearGrupo` / `AgregarMiembro` / `RetirarMiembro` | §6 grupos |
+| Caso de uso | Ruta | Maestro |
+|---|---|---|
+| `InstalarNodo` | §1.2, comando | JRN-001, PAN-204 |
+| `ConsultarConfiguracion` | §1.1 | PAN-101, BR-024 |
+| `RegistrarDispositivo` | §1.3 | MOD-009 |
+| `AutenticarUsuario` | §1.4 | FUN-004, FUN-005, FUN-007, BR-021, TST-027 |
+| `ResolverPrincipal` | todas | FUN-009, FUN-011 |
+| `CanjearAccesoTemporal` | §1.5 | CAP-002 (sesión temporal), TST-074 |
+| `ConsultarIdentidad` | §2.1 | PAN-020, PAN-100 |
+| `CambiarCredencialPropia` | §2.2 | — |
+| `RevocarSesion` · `RevocarSesionesDeUsuario` · `ListarSesiones` | §2.3, §3 | FUN-010 |
+| `CrearUsuario` | §4.2 | FUN-001, DEC-049, MSG-023 |
+| `ImportarUsuarios` | §4.3, comando | FUN-003, CAP-003, JRN-003, PAN-220, MSG-065 |
+| `VincularUsuarioProvisional` | §4.4 | JRN-007 |
+| `ListarUsuarios` · `VerUsuario` · `ActualizarUsuario` | §4.1, §4.5 | PAN-221, BR-025 |
+| `AsignarRol` · `RevocarRolAsignado` | §4.6 | FUN-002, CAP-005, CAP-006, BR-021 |
+| `OtorgarEscalada` · `RevocarEscalada` | §4.7 | BR-101, PAN-241, MSG-052/053 |
+| `RestablecerCredencial` | §4.8 | FUN-006, CAP-004 |
+| `DesbloquearUsuario` | §4.9 | FUN-008 |
+| `OtorgarAccesoTemporal` · `ListarAutorizaciones` · `RevocarAccesoTemporal` | §5 | CAP-002, CAP-004 |
+| `ListarRoles` · `ListarPermisos` · `CrearRol` | §6 | PAN-222, TST-066 |
+| `ListarPoliticas` · `ConfigurarPolitica` | §6 | BR-023, BR-024 |
+| `ListarGrupos` · `VerGrupo` · `CrearGrupo` · `ActualizarGrupo` · `AgregarMiembro` · `RetirarMiembro` | §6 | MOD-002 (replicado) |
+| `ListarDispositivos` · `ActualizarDispositivo` | §6 | MOD-009 (replicado) |
 
 ---
 
 ## 9 · Pruebas que acompañan al contrato
 
-| Prueba | Qué comprueba |
+| Suite | Qué comprueba |
 |---|---|
-| `test_arquitectura` | Ningún archivo de `dominio/` ni `aplicacion/` importa Django, DRF, Pydantic, SQLAlchemy o FastAPI |
-| `test_politicas` | Decisiones RBAC + alcance con datos en memoria; PIN triviales rechazados; contraseña docente sin símbolo rechazada |
-| `test_seguridad` | AES-GCM cifra/descifra y detecta manipulación; HMAC estable tras normalizar; Argon2id verifica y rehash; JWT caduca |
-| `test_api_sesiones` | Instalación única, login por código+PIN, login docente por DNI+contraseña, bloqueo tras 5 fallos y `423`, `yo`, logout, revocación por docente |
-| `test_api_usuarios` | Docente crea estudiante en su grupo y no en otro; no crea docentes; restablecer devuelve secreto una vez y obliga a cambiar; desbloquear |
-| `test_api_temporal` | Opción A y B: canje, un solo uso, caducidad, tercer fallo revoca, sesión `TEMPORAL` limitada |
-| `test_outbox` | Crear usuario deja `m01_evento_salida` en la misma transacción; un fallo posterior no deja ni usuario ni evento |
+| `test_arquitectura` | Dominio y aplicación sin frameworks |
+| `test_politicas` | Cuatro alcances, tope por asignación, los cinco roles, regla 403, avatar, inactividad, bloqueo |
+| `test_seguridad` | AES-GCM, HMAC, Argon2id, JWT |
+| `test_api_sesiones` | Instalación, login, bloqueo, **sesión única**, **dispositivo compartido**, **inactividad**, **reinicio**, revocación total |
+| `test_api_usuarios` | Creación por alcance, **importación**, **admisión nominal**, credenciales, **roles con alcance**, **escaladas**, grupos, políticas por nivel, baja irreversible, retiro de identificadores |
+| `test_api_temporal` | Opciones A y B del pase de examen |
+| `test_outbox` | Outbox transaccional y nomenclatura `identidad.*.v1` |

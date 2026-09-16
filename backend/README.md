@@ -78,17 +78,19 @@ set AVACOM_CONTENIDO_ENLACE=%TEMP%\enlace-pruebas.json
 | `/api/acceso/configuracion/` | GET | Qué identificador y qué secreto usa cada perfil (para pintar el login). Sin sesión |
 | `/api/acceso/instalacion/` | POST | Primer arranque: organización, políticas y primer administrador. Sólo una vez |
 | `/api/acceso/dispositivos/` | POST · GET | Registro idempotente de la tableta · listado (con sesión) |
-| `/api/acceso/sesiones/` | POST · GET | Iniciar sesión (JWT de 4 h) · listar sesiones |
-| `/api/acceso/sesiones/actual/`, `/api/acceso/sesiones/{id}/` | DELETE | Cerrar la propia · revocar ajena |
-| `/api/acceso/yo/`, `/api/acceso/yo/credencial/` | GET · PUT | Identidad, permisos efectivos y menú · cambiar la propia clave |
-| `/api/acceso/usuarios/…` | GET, POST, PATCH | Usuarios, rol, permisos adicionales, `credencial/restablecer/`, `desbloquear/` |
+| `/api/acceso/sesiones/` | POST · GET | Iniciar sesión (JWT de 4 h, **una sola por persona**, rol efectivo elegible) · listar sesiones |
+| `/api/acceso/sesiones/actual/`, `/api/acceso/sesiones/{id}/`, `/api/acceso/usuarios/{id}/sesiones/` | DELETE | Cerrar la propia · revocar ajena · revocar todas las de un usuario |
+| `/api/acceso/yo/`, `/api/acceso/yo/credencial/` | GET · PUT | Identidad, rol efectivo, roles disponibles, permisos y menú · cambiar la propia clave |
+| `/api/acceso/usuarios/…` | GET, POST, PATCH | Usuarios, `importar/`, `vincular/` (admisión nominal), `roles/` (asignaciones con alcance y vigencia), `escaladas/`, `credencial/restablecer/`, `desbloquear/` |
 | `/api/acceso/autorizaciones-temporales/…` | POST, GET, DELETE · `canjear/` | Acceso temporal a examen (tableta autorizada o código de un solo uso) |
-| `/api/acceso/roles/`, `permisos/`, `politicas/`, `grupos/…` | GET, POST, PUT, PATCH | Catálogos y configuración del colegio |
+| `/api/acceso/roles/`, `permisos/`, `politicas/{perfil}/[?nivel=]`, `grupos/…` | GET, POST, PUT, PATCH | Catálogos y configuración del colegio, políticas por nivel educativo |
 
-El módulo de acceso está especificado en [`spec-driven/01-acceso/`](../spec-driven/01-acceso/01-modelado-datos.md)
-(modelo de datos) y [`02-Endpoints.md`](../spec-driven/01-acceso/02-Endpoints.md) (contrato). Vive en `acceso/`
-con arquitectura hexagonal: `dominio/` y `aplicacion/` no importan Django; `infraestructura/` e `interfaces/`
-son los adaptadores (ORM, Argon2id, AES-GCM, JWT, DRF).
+El módulo de acceso implementa **MOD-001 · Identity & Access** del Documento Maestro de AVACOM LMS. Está
+especificado en [`spec-driven/01-acceso/`](../spec-driven/01-acceso/01-modelado-datos.md) (modelo de datos),
+[`02-Endpoints.md`](../spec-driven/01-acceso/02-Endpoints.md) (contrato), [`03-casos-de-uso-backend.md`](../spec-driven/01-acceso/03-casos-de-uso-backend.md)
+(guía de lectura) y [`04-Lineamientos-Al-Documento-Maestro.md`](../spec-driven/01-acceso/04-Lineamientos-Al-Documento-Maestro.md)
+(cruce con el Maestro). Vive en `acceso/` con arquitectura hexagonal: `dominio/` y `aplicacion/` no importan Django;
+`infraestructura/` e `interfaces/` son los adaptadores (ORM, Argon2id, AES-GCM, JWT, DRF).
 
 ## Instalar el nodo (módulo de acceso)
 
@@ -101,6 +103,16 @@ o con el comando:
 ```
 
 Si no se pasa `--admin-password`, se genera una y se muestra **una sola vez**.
+
+Para cargar el padrón sin red desde un archivo delimitado (FUN-003 del Documento Maestro), con las columnas
+`rol, alias, nombres, apellidos, tipo_identificador, identificador, grupo, secreto`:
+
+```powershell
+.venv\Scripts\python manage.py acceso_importar padron.csv --actor-dni 1042888795
+```
+
+Los identificadores que ya existen se fusionan (no se duplica la persona) y las filas con error se listan con su
+motivo sin abortar el lote.
 
 Códigos de degradación: **503** biblioteca ausente (con `sugerencia`), **501**
 capacidad no publicada (con `capacidades`), **502** la biblioteca contestó con
