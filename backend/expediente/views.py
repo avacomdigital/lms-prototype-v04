@@ -57,7 +57,19 @@ class HealthView(VistaExpediente):
             "administra_cursos": False,
             "dueno_de_los_cursos": "AVACOM Biblioteca",
             "biblioteca": cliente.estado(),
+            "acceso": self._estado_acceso(),
         })
+
+    @staticmethod
+    def _estado_acceso() -> dict:
+        """Estado del módulo de acceso: si el nodo está instalado y si las claves son las derivadas del prototipo."""
+        try:
+            from acceso.aplicacion.casos_uso import ConsultarConfiguracion
+            from acceso.infraestructura.contenedor import servicios
+            configuracion = ConsultarConfiguracion(servicios()).ejecutar()
+            return {"instalado": configuracion["instalado"], "claves_derivadas": configuracion["claves_derivadas"]}
+        except Exception as error:  # el health nunca falla por el módulo de acceso
+            return {"instalado": False, "claves_derivadas": None, "error": str(error)}
 
 
 # ------------------------------------------------------------- inscripción

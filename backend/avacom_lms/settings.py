@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.staticfiles",
     "rest_framework",
+    "acceso",
     "biblioteca",
     "expediente",
 ]
@@ -58,14 +59,26 @@ USE_TZ = True
 STATIC_URL = "static/"
 
 REST_FRAMEWORK = {
-    # Prototipo de aula: sin autenticación (Q-04). La separación docente/estudiante
-    # es una convención del cliente y de la frontera de escritura del backend.
-    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    # El módulo `acceso` aporta la autenticación JWT. Sin cabecera Authorization el
+    # portador es anónimo, así que las rutas del expediente siguen abiertas (Q-04)
+    # hasta que AVACOM_LMS_EXIGIR_SESION=1 las cierre (Q-34).
+    "DEFAULT_AUTHENTICATION_CLASSES": ["acceso.interfaces.autenticacion.AutenticacionJwt"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_PARSER_CLASSES": ["rest_framework.parsers.JSONParser"],
     "UNAUTHENTICATED_USER": None,
 }
+
+# -------------------------------------------------------------------- Acceso
+# Claves del módulo de acceso (32 bytes en base64). Las entrega el instalador en
+# backend.env. Si faltan, se derivan con HKDF de SECRET_KEY y /health/ lo avisa.
+AVACOM_LMS_CLAVE_DATOS = os.environ.get("AVACOM_LMS_CLAVE_DATOS") or None     # AES-256-GCM (PII)
+AVACOM_LMS_CLAVE_INDICE = os.environ.get("AVACOM_LMS_CLAVE_INDICE") or None   # HMAC-SHA-256 (índice ciego)
+AVACOM_LMS_CLAVE_TOKENS = os.environ.get("AVACOM_LMS_CLAVE_TOKENS") or None   # JWT HS256
+# Argon2id: por encima del mínimo OWASP (m=19 MiB, t=2, p=1). Las pruebas lo bajan.
+AVACOM_LMS_ARGON2 = {"time_cost": 3, "memory_cost": 65536, "parallelism": 1}
+# Q-34: con "1" las rutas del expediente y la biblioteca exigen sesión.
+AVACOM_LMS_EXIGIR_SESION = os.environ.get("AVACOM_LMS_EXIGIR_SESION", "0") == "1"
 
 # ---------------------------------------------------------------- Biblioteca
 # Ruta forzada de la nota de enlace. Permite probar la integración con un host

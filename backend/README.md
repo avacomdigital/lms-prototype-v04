@@ -75,6 +75,32 @@ set AVACOM_CONTENIDO_ENLACE=%TEMP%\enlace-pruebas.json
 | `/api/inscripciones/` | GET, POST, DELETE lógico | Inscripción |
 | `/api/auditoria/` | GET | Sólo lectura |
 | `/api/courses/…` y demás rutas de administración | cualquier verbo | **409** `administracion_no_permitida` |
+| `/api/acceso/configuracion/` | GET | Qué identificador y qué secreto usa cada perfil (para pintar el login). Sin sesión |
+| `/api/acceso/instalacion/` | POST | Primer arranque: organización, políticas y primer administrador. Sólo una vez |
+| `/api/acceso/dispositivos/` | POST · GET | Registro idempotente de la tableta · listado (con sesión) |
+| `/api/acceso/sesiones/` | POST · GET | Iniciar sesión (JWT de 4 h) · listar sesiones |
+| `/api/acceso/sesiones/actual/`, `/api/acceso/sesiones/{id}/` | DELETE | Cerrar la propia · revocar ajena |
+| `/api/acceso/yo/`, `/api/acceso/yo/credencial/` | GET · PUT | Identidad, permisos efectivos y menú · cambiar la propia clave |
+| `/api/acceso/usuarios/…` | GET, POST, PATCH | Usuarios, rol, permisos adicionales, `credencial/restablecer/`, `desbloquear/` |
+| `/api/acceso/autorizaciones-temporales/…` | POST, GET, DELETE · `canjear/` | Acceso temporal a examen (tableta autorizada o código de un solo uso) |
+| `/api/acceso/roles/`, `permisos/`, `politicas/`, `grupos/…` | GET, POST, PUT, PATCH | Catálogos y configuración del colegio |
+
+El módulo de acceso está especificado en [`spec-driven/01-acceso/`](../spec-driven/01-acceso/01-modelado-datos.md)
+(modelo de datos) y [`02-Endpoints.md`](../spec-driven/01-acceso/02-Endpoints.md) (contrato). Vive en `acceso/`
+con arquitectura hexagonal: `dominio/` y `aplicacion/` no importan Django; `infraestructura/` e `interfaces/`
+son los adaptadores (ORM, Argon2id, AES-GCM, JWT, DRF).
+
+## Instalar el nodo (módulo de acceso)
+
+Tras `migrate`, el catálogo de permisos y los roles `STUDENT`, `TEACHER` y `ADMIN` ya están sembrados.
+La organización y el primer administrador se crean una sola vez, desde la API (`POST /api/acceso/instalacion/`)
+o con el comando:
+
+```powershell
+.venv\Scripts\python manage.py acceso_instalar --codigo IE-SANJOSE --nombre "IE San José" --pais CO --admin-dni 1042888795 --admin-nombres Ana --admin-apellidos Pérez
+```
+
+Si no se pasa `--admin-password`, se genera una y se muestra **una sola vez**.
 
 Códigos de degradación: **503** biblioteca ausente (con `sugerencia`), **501**
 capacidad no publicada (con `capacidades`), **502** la biblioteca contestó con
@@ -88,3 +114,10 @@ error, **404/403** referencia inexistente o desactivada por la escuela.
 | `AVACOM_CONTENIDO_TIEMPO_ESPERA_SEG` | Tiempo de espera hacia la biblioteca (3 s por defecto) |
 | `AVACOM_LMS_DB` | Ruta del SQLite (por defecto `backend/db.sqlite3`) |
 | `AVACOM_LMS_DEBUG` | `1` por defecto en el prototipo |
+| `AVACOM_LMS_CLAVE_DATOS` | Clave AES-256-GCM para los datos personales (32 bytes en base64) |
+| `AVACOM_LMS_CLAVE_INDICE` | Clave HMAC-SHA-256 del índice ciego (búsqueda de DNI/código/correo) |
+| `AVACOM_LMS_CLAVE_TOKENS` | Clave HS256 de los JWT |
+| `AVACOM_LMS_EXIGIR_SESION` | `0` por defecto. Con `1`, expediente y biblioteca exigen sesión (Q-34) |
+
+Si faltan las tres claves, el prototipo las deriva de `SECRET_KEY` con HKDF y `/health/` responde
+`"acceso": {"claves_derivadas": true}`. En una instalación distribuida deben venir en `backend.env`.
