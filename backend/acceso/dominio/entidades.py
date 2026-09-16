@@ -35,26 +35,55 @@ class Organizacion:
 
 @dataclass
 class PoliticaCredencial:
+    """El **reglamento de acceso que cada colegio elige**, escrito en una fila.
+
+    Es la respuesta a «¿cómo entra la gente aquí?», y cada institución la contesta
+    distinto. Un colegio de primaria quiere que sus niños entren con el código
+    estudiantil y cuatro números; una universidad quiere documento y contraseña
+    larga. En vez de programar dos versiones del software, se guarda la respuesta
+    en esta tabla y el mismo código se comporta como pida cada sitio.
+
+    Hay una política por **perfil**: una para estudiantes, otra para docentes y
+    otra para administración. Por eso el estudiante puede entrar con PIN mientras
+    el profesor necesita contraseña con mayúscula y símbolo: son dos filas
+    distintas de esta misma tabla, no dos programas distintos.
+
+    Manda sobre cinco cosas del día a día:
+      · con QUÉ se identifica uno (código, documento, correo o lo que sea)
+      · qué CLASE de clave usa (PIN de números o contraseña)
+      · qué tan DIFÍCIL debe ser esa clave (largo, mayúsculas, símbolos...)
+      · cuántos ERRORES se toleran antes de bloquear, y por cuánto tiempo
+      · cuánto DURA la sesión antes de volver a pedir la clave
+    """
+
     id: str
     organizacion_id: str
-    perfil: Menu
-    tipo_identificador: TipoIdentificador
-    tipo_secreto: TipoSecreto
-    longitud_minima: int
-    exige_mayuscula: bool
-    exige_minuscula: bool
+    perfil: Menu                            # a quién le aplica: student / teacher / admin
+    tipo_identificador: TipoIdentificador   # con qué se identifica: DNI, código estudiantil, correo
+    tipo_secreto: TipoSecreto               # PIN (sólo números) o PASSWORD (contraseña)
+    longitud_minima: int                    # 6 para un PIN de aula, 8 para docentes, 12 para administración
+    exige_mayuscula: bool                   # las cuatro «exige_*» sólo tienen sentido con contraseña;
+    exige_minuscula: bool                   # en un PIN se ignoran, porque un PIN es sólo dígitos
     exige_digito: bool
     exige_simbolo: bool
-    intentos_maximos: int
-    ventana_intentos_min: int
-    bloqueo_minutos: int
-    duracion_sesion_min: int
-    vigencia_credencial_dias: int | None
-    permite_acceso_temporal: bool
+    intentos_maximos: int                   # cuántas veces puede equivocarse antes de quedar bloqueado
+    ventana_intentos_min: int               # en cuántos minutos se cuentan esos errores (pasado ese rato, borrón y cuenta nueva)
+    bloqueo_minutos: int                    # cuánto dura el castigo. El docente puede levantarlo antes
+    duracion_sesion_min: int                # 240 = cuatro horas: más que una jornada de clase
+    vigencia_credencial_dias: int | None    # cada cuánto caduca la clave. None = no caduca nunca
+    permite_acceso_temporal: bool           # si a este perfil se le puede dar el «pase de emergencia» de examen
     creado_en: int
     actualizado_en: int
 
     def validar(self) -> None:
+        """Impide que un colegio se configure a sí mismo un reglamento absurdo.
+
+        El administrador puede ajustar estos números desde la pantalla de
+        administración, y podría por descuido dejar la puerta abierta de par en par
+        (un PIN de 1 dígito) o cerrarla con llave (bloquear al primer error). Estas
+        comprobaciones son el suelo por debajo del cual no se puede bajar: si algo
+        no cuadra, el cambio se rechaza y el reglamento anterior sigue vigente.
+        """
         if self.longitud_minima < 4:
             raise ValueError("La longitud mínima no puede ser menor que 4.")
         if self.tipo_secreto is TipoSecreto.PIN and not 4 <= self.longitud_minima <= 8:
@@ -69,6 +98,13 @@ class PoliticaCredencial:
             raise ValueError("Ventana y bloqueo se expresan en minutos mayores que cero.")
 
     def admite_identificador(self, tipo: TipoIdentificador) -> bool:
+        """¿Sirve este tipo de identificador para entrar en este colegio?
+
+        Un estudiante puede tener registrados su código y su documento, pero si el
+        colegio dijo «aquí se entra con el código», el documento no abre la puerta
+        aunque sea suyo y sea correcto. `CUALQUIERA` es el comodín para los
+        colegios que prefieren aceptar todo lo que la persona tenga registrado.
+        """
         return self.tipo_identificador is TipoIdentificador.CUALQUIERA or self.tipo_identificador is tipo
 
 

@@ -11,13 +11,25 @@ from . import repositorios as r
 
 
 class UnidadDeTrabajoDjango:
+    """La versión de verdad de la «carpeta de trabajo» descrita en `puertos.py`.
+
+    Aquí es donde se decide QUIÉN hace el trabajo: SQLite a través de Django. Si
+    mañana el backend pasa a FastAPI con SQLAlchemy, se reescribe este archivo y el
+    resto del módulo (dominio y casos de uso) no se entera.
+    """
+
     def __init__(self, cifrador: Cifrador):
+        # El cifrador viaja hasta aquí porque el cajón de usuarios necesita cifrar
+        # nombres y documentos justo al escribirlos, y descifrarlos al leerlos.
         self._cifrador = cifrador
         self._atomic = None
 
     def __enter__(self) -> "UnidadDeTrabajoDjango":
+        # Abrir la carpeta = abrir una transacción de base de datos. A partir de
+        # este momento nada de lo que se escriba es definitivo todavía.
         self._atomic = transaction.atomic()
         self._atomic.__enter__()
+        # Y se preparan los cajones: cada uno sabe leer y escribir una cosa.
         self.organizaciones = r.OrganizacionesDjango()
         self.politicas = r.PoliticasDjango()
         self.permisos = r.PermisosDjango()
@@ -34,12 +46,23 @@ class UnidadDeTrabajoDjango:
         return self
 
     def __exit__(self, tipo, valor, traza) -> None:
-        # transaction.atomic hace commit si no hay excepción y rollback si la hay.
+        # Cerrar la carpeta. `transaction.atomic` mira si la gestión terminó bien:
+        #   - sin error  -> commit:   todo lo escrito queda guardado de golpe.
+        #   - con error  -> rollback: la base vuelve a como estaba al abrir, como
+        #                             si la gestión nunca hubiera empezado.
+        # Por eso una matrícula a medias es imposible: no hay un punto intermedio.
         self._atomic.__exit__(tipo, valor, traza)
         self._atomic = None
 
 
 class FabricaUoWDjango:
+    """Reparte carpetas nuevas: cada gestión (cada caso de uso) estrena la suya.
+
+    Es lo que los casos de uso llaman con `self.s.uow()`. No se reutiliza una
+    carpeta entre dos gestiones distintas, porque entonces un fallo en la segunda
+    borraría el trabajo de la primera.
+    """
+
     def __init__(self, cifrador: Cifrador):
         self._cifrador = cifrador
 

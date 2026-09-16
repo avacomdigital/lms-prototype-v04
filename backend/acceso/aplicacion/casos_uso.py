@@ -374,14 +374,47 @@ def asegurar_plantillas(uow: UnidadDeTrabajo, ahora: int) -> None:
 
 
 class InstalarNodo(Base):
-    """Primer arranque: organización, políticas por defecto y primer administrador."""
+    """El **día cero** del equipo del aula: la primera vez que se enciende.
+
+    Antes de esto la base de datos tiene las tablas, pero está vacía: no hay
+    colegio, no hay reglamento de acceso y no hay ni una sola persona. Es el
+    problema del huevo y la gallina: para crear usuarios hace falta un
+    administrador, y para crear al administrador hacen falta permisos que nadie
+    tiene todavía. Este caso de uso rompe ese círculo y hace, de una sola vez:
+
+      1. Comprueba que el equipo esté realmente vacío (si no, se planta).
+      2. Deja listos los permisos y los tres roles de fábrica.
+      3. Crea el colegio (nombre, país, idioma, zona horaria).
+      4. Le pone el reglamento de acceso por defecto a cada perfil: los
+         estudiantes con código y PIN, los docentes con documento y contraseña.
+      5. Crea a la primera persona, que es administradora, y le entrega su clave.
+
+    Se ejecuta una vez en la vida del equipo, desde el asistente del instalador o
+    con `manage.py acceso_instalar`. A partir de ese momento el colegio ya puede
+    crear docentes, y los docentes sus estudiantes, sin volver a pasar por aquí.
+    """
 
     def ejecutar(self, organizacion: dict, administrador: dict) -> dict:
+        # Toda la instalación ocurre dentro de UNA sola «carpeta de trabajo»: o
+        # queda el colegio completo con su administrador y su reglamento, o no
+        # queda nada. Un equipo a medio instalar sería peor que uno sin instalar.
         with self.s.uow() as uow:
+            # Sólo se instala una vez. Si ya hay un colegio, alguien está
+            # intentando instalar encima de un aula en uso: se rechaza en seco,
+            # porque si no cualquiera con acceso a la red podría fabricarse un
+            # administrador nuevo y entrar con él.
             if uow.organizaciones.unica() is not None:
                 raise errores.YaInstalado()
             ahora = self.ahora()
+            # Los permisos y los roles STUDENT / TEACHER / ADMIN ya vienen de
+            # fábrica con el programa. Esto se asegura de que estén presentes: es
+            # lo que permite que un colegio que no quiera configurar nada funcione
+            # con sólo instalar (lo que llamamos «plug and play»).
             asegurar_plantillas(uow, ahora)
+            # El idioma y el país se guardan en los formatos internacionales de
+            # siempre: "es", "CO", "es-CO". Si el instalador no manda el combinado,
+            # se arma con las dos piezas. Así el mismo dato se entiende en México,
+            # en Colombia o en cualquier país al que llegue el producto.
             locale = LocaleCode(organizacion.get("locale") or f"{organizacion.get('idioma', 'es')}-{organizacion.get('pais', 'CO')}")
             org = Organizacion(
                 id=_nuevo_id(),
@@ -394,6 +427,12 @@ class InstalarNodo(Base):
                 creado_en=ahora,
             )
             uow.organizaciones.guardar(org)
+            # Un reglamento de acceso por perfil, con los valores de fábrica:
+            # estudiantes -> código estudiantil + PIN de 6
+            # docentes    -> documento + contraseña de 8 con mayúscula y símbolo
+            # administración -> documento + contraseña de 12, la más estricta
+            # El colegio puede cambiarlos después; lo importante es que desde el
+            # primer minuto exista un reglamento y nadie entre sin clave.
             for perfil, valores in plantillas.POLITICAS_POR_DEFECTO.items():
                 uow.politicas.guardar(PoliticaCredencial(id=_nuevo_id(), organizacion_id=org.id, perfil=perfil,
                                                          creado_en=ahora, actualizado_en=ahora, **valores))
@@ -407,12 +446,23 @@ class InstalarNodo(Base):
                 "identificadores": [{"tipo": "DNI", "valor": administrador.get("dni"), "es_login": True}],
                 "secreto": administrador.get("password"),
             }
+            # `creado_por=None` porque esta es la única persona del sistema a la
+            # que no la creó nadie: es la primera. Si quien instala eligió su
+            # contraseña, vale tal cual; si la dejó en blanco, el equipo genera una
+            # y se marca como provisional, de modo que al entrar la primera vez
+            # esté obligado a cambiarla por una suya.
             creado = CrearUsuario(self.s)._crear(uow, org, rol_admin, datos_admin, creado_por=None,
                                                  provisional=not administrador.get("password"))
+            # Queda constancia de la instalación en el libro de auditoría y un
+            # aviso en la bandeja de salida, por si algún día hay una sede central
+            # con la que sincronizar.
             self.auditar(uow, creado["id"], "acceso.instalacion", "m01_organizacion", org.id, {"codigo": org.codigo})
             self.evento(uow, "organizacion", org.id, "acceso.organizacion.instalada", {"codigo": org.codigo})
             salida = {"organizacion": dto_organizacion(org),
                       "administrador": {"id": creado["id"], "alias": creado["alias"]}}
+            # La contraseña generada se devuelve AQUÍ Y NADA MÁS QUE AQUÍ. De ella
+            # sólo se guarda una huella irreversible, así que ni el programa ni
+            # nosotros podemos volver a leerla: quien instala tiene que anotarla.
             if "secreto_inicial" in creado:
                 salida["password_inicial"] = creado["secreto_inicial"]
             return salida
@@ -591,24 +641,65 @@ class ResolverPrincipal(Base):
 
 
 class ConsultarIdentidad(Base):
-    """`GET /yo/`: lo que el cliente usa para pintar el menú."""
+    """La pregunta **«¿quién soy y qué puedo hacer aquí?»**, que la app hace nada más entrar.
+
+    La aplicación del profesor y la de la tableta son la misma aplicación. Lo que
+    cambia es lo que cada persona ve al abrirla: el estudiante ve sus asignaturas
+    y su progreso; el profesor ve además la lista de su grupo, con «Nuevo PIN» y
+    «Autorizar acceso»; la administración ve la configuración del colegio.
+
+    Esa decisión no la toma la app adivinando por el rol: la toma aquí. Justo
+    después de iniciar sesión, la app pregunta y recibe tres cosas:
+
+      · el menú que le toca (`student`, `teacher` o `admin`)
+      · la lista exacta de lo que esa persona puede hacer, y sobre quién
+      · a qué grupos pertenece y hasta qué hora le dura la sesión
+
+    La app se limita a pintar eso. La ventaja práctica: si mañana el rector le da
+    a una coordinadora un permiso extra, ella lo ve al volver a entrar, sin
+    actualizar ni reinstalar nada en los equipos del aula.
+
+    Y esto es sólo para dibujar la pantalla: cada vez que se pulsa un botón, el
+    servidor vuelve a comprobar el permiso por su cuenta. Ocultar un botón es
+    comodidad; la seguridad está en la comprobación del servidor.
+    """
 
     def ejecutar(self, principal: Principal) -> dict:
         with self.s.uow() as uow:
+            # `principal` es quien viene con la sesión abierta. Se vuelve a buscar
+            # en la base en lugar de creer lo que trae el pase de entrada: si la
+            # cuenta se borró o cambió hace un minuto, aquí se nota.
             usuario = uow.usuarios.por_id(principal.usuario_id)
             if usuario is None:
                 raise errores.SesionInvalida()
             rol = self.rol_de(uow, usuario)
+            # El «contexto» reúne todo lo que hace falta para decidir: su rol, los
+            # permisos extra que le hayan dado y en qué grupos es docente. Se
+            # calcula una sola vez y sirve para todas las preguntas siguientes.
             ctx = self.contexto(uow, principal)
             sesion = uow.sesiones.por_id(principal.sesion_id)
             dispositivo = uow.dispositivos.por_id(sesion.dispositivo_id) if sesion and sesion.dispositivo_id else None
+            # Se arma la lista de lo que puede hacer. Cada línea lleva:
+            #   codigo  -> la acción ("restablecer la clave de alguien")
+            #   alcance -> hasta dónde: sólo consigo mismo (SELF), con los
+            #              estudiantes de sus grupos (ASSIGNED_GROUPS) o con todo
+            #              el colegio (ORGANIZATION)
+            #   origen  -> si le viene de su rol o es un permiso extra que le
+            #              concedieron, y hasta cuándo vale
             permisos = []
             for c in sorted(ctx.concesiones.values(), key=lambda c: c.permiso_codigo):
+                # Se pregunta uno por uno porque hay situaciones que recortan
+                # permisos sobre la marcha: quien tiene una clave provisional sólo
+                # puede cambiarla, y quien entró con el pase de emergencia de
+                # examen sólo puede rendir ese examen. Lo que aquí queda fuera,
+                # la app ni siquiera lo dibuja.
                 alcance = self.politica.alcance_concedido(ctx, c.permiso_codigo)
                 if alcance is None:
                     continue
                 permisos.append({"codigo": c.permiso_codigo, "alcance": alcance.value, "origen": c.origen,
                                  "vigente_hasta": c.vigente_hasta})
+            # Los datos personales viajan descifrados sólo en esta respuesta y sólo
+            # hacia su propio dueño: es su nombre, lo está pidiendo él mismo.
             dto = self.dto_usuario(uow, usuario, rol, incluir_pii=True)
             return {
                 "usuario": {k: v for k, v in dto.items() if k not in ("grupos", "identificadores")},

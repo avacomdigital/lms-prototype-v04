@@ -128,7 +128,30 @@ class RegistroAuditoria(Protocol):
 
 
 class UnidadDeTrabajo(Protocol):
-    """Una transacción. Todo lo que se escribe dentro se confirma o se deshace junto."""
+    """Una transacción. Todo lo que se escribe dentro se confirma o se deshace junto.
+
+    En lenguaje llano: es **la carpeta de trabajo de una gestión**.
+
+    Cuando el docente matricula a un estudiante nuevo no ocurre «una cosa»: se crea
+    la cuenta, se guardan sus datos personales cifrados, su código, su PIN, su
+    inscripción al grupo, el apunte de auditoría y el aviso para sincronizar. Son
+    siete escrituras distintas. Si la quinta falla (por ejemplo, el código ya era de
+    otra persona), lo que NO puede pasar es quedarnos con media matrícula: un
+    estudiante sin PIN, o un PIN sin estudiante.
+
+    La Unidad de Trabajo es la promesa de que eso no ocurre: se abre al empezar la
+    gestión, se hacen todas las escrituras dentro, y al cerrarse **o se guarda todo,
+    o no se guarda nada**. Como la carpeta de una matrícula en secretaría: se
+    entrega completa y firmada, o se devuelve entera y es como si nunca hubiera
+    pasado.
+
+    Los atributos de abajo son los cajones de esa carpeta: uno por cada cosa que el
+    módulo sabe guardar (usuarios, credenciales, grupos, sesiones...). Cada cajón
+    sabe leer y escribir lo suyo; el caso de uso los usa sin saber si detrás hay
+    SQLite, PostgreSQL o un archivo. Por eso esto es una *interfaz* (un contrato de
+    lo que se puede pedir) y no el código que lo hace de verdad: ese vive en
+    `infraestructura/unidad_trabajo.py` y puede cambiarse sin tocar nada de aquí.
+    """
 
     organizaciones: RepositorioOrganizaciones
     politicas: RepositorioPoliticas
@@ -144,6 +167,13 @@ class UnidadDeTrabajo(Protocol):
     outbox: Outbox
     auditoria: RegistroAuditoria
 
+    # Estas dos son las que abren y cierran la carpeta. Python las llama solo al
+    # entrar y al salir de un bloque `with`; el caso de uso nunca las invoca a mano:
+    #
+    #     with self.s.uow() as uow:      # <- se abre la carpeta
+    #         uow.usuarios.guardar(...)  #    escrituras dentro
+    #         uow.credenciales.guardar(...)
+    #     # <- al salir bien, se confirma todo; si hubo un error, se deshace todo
     def __enter__(self) -> "UnidadDeTrabajo": ...
     def __exit__(self, tipo, valor, traza) -> None: ...
 
