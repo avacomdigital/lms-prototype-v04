@@ -15,6 +15,7 @@ Documentación para el **nuevo prototipo**, en el que la administración del cur
 | [08 · Instalador](08-instalador.md) | Decisiones del instalador de AVACOM OPS Master: servicio de Windows, Waitress, runtime Python embebido | Vas a distribuir el producto |
 | [01-acceso · 01 · Modelado de datos](01-acceso/01-modelado-datos.md) | Módulo de acceso y usuarios: tablas `m01_*` en 3FN, RBAC con alcance, credenciales configurables por colegio, Argon2id/AES-GCM/HMAC, JWT, recuperación en el aula y arquitectura hexagonal | Vas a tocar identidad, permisos o sesiones |
 | [01-acceso · 02 · Endpoints](01-acceso/02-Endpoints.md) | Contrato de `/api/acceso/`: login, `yo`, usuarios, restablecer, desbloquear, acceso temporal a examen, catálogos; códigos de error y trazabilidad con los casos de uso | Vas a consumir la API desde MAUI |
+| [01-acceso · 03 · Casos de uso del backend](01-acceso/03-casos-de-uso-backend.md) | Guía de lectura del código ya escrito: las seis capas con una analogía, el viaje completo de una petición, los 35 casos de uso uno por uno con ejemplos de cada endpoint, y qué pantalla del frontend consume cada uno. Escrita para programadores y no programadores | Vas a entender, mantener o explicar el módulo |
 
 Las presentaciones del módulo de acceso están en [`specs/presentaciones/acceso.html`](../specs/presentaciones/acceso.html) (diseño de datos) y [`specs/presentaciones/acceso-sugerencias.html`](../specs/presentaciones/acceso-sugerencias.html) (pantallas MAUI).
 
