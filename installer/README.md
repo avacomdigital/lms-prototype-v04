@@ -10,6 +10,7 @@ installer/
 │   ├── Get-PythonRuntime.ps1   Ensambla el Python embebido con Django/DRF/Waitress
 │   ├── Distribucion.props      Propiedades de publicación (no toca ningún .csproj)
 │   ├── New-ImagenesAsistente.ps1  Imágenes de marca de las pantallas del asistente
+│   ├── New-ProbadorBat.ps1     Empaqueta el diagnóstico en un .bat autocontenido
 │   ├── Verificar-Asistente.ps1 Ejecuta las comprobaciones del asistente de verdad
 │   └── PruebaAsistente.iss     Arnés: la misma lógica, sin nada que instalar
 ├── src/
@@ -21,6 +22,9 @@ installer/
 │   └── payload/
 │       ├── avacom_ops_backend.py       Arranque de Waitress
 │       └── requirements-runtime.txt    Dependencias que viajan en el paquete
+├── tools/
+│   ├── AVACOM-Probar-Comunicacion.bat  Diagnóstico en UN archivo (lo que se distribuye)
+│   └── Probar-Comunicacion.ps1         Su código fuente
 └── latest/
     ├── AVACOM-OPS-Master-Setup-<versión>.exe
     └── SHA256.txt
@@ -188,6 +192,102 @@ Antes de esto, el icono era el cuadrado morado `#512BD4` de la plantilla de
 usaba además las ilustraciones genéricas de Inno Setup en cada pantalla. La
 compilación ahora **falla** si el icono de la plantilla vuelve a aparecer.
 
+## Diagnosticar la comunicación con AVACOM Biblioteca
+
+Cuando en el aula «no aparecen los cursos», la causa puede estar en cualquiera
+de los cuatro eslabones de la cadena, y desde la pantalla del profesor los
+cuatro se ven igual. `AVACOM-Probar-Comunicacion.bat` los separa.
+
+Es **un solo archivo**: se descarga de la release y se toca. No necesita nada al
+lado. Al terminar deja en el escritorio un informe y un `.zip` con las
+evidencias, y los abre.
+
+Un `.bat` y no un `.ps1` por dos razones, las dos del equipo del aula: Windows
+no ejecuta un `.ps1` con un doble toque —lo abre en el Bloc de notas— y, al
+descargarlo de la release, lo marca como venido de internet y la política
+`RemoteSigned` (la de fábrica) lo rechaza con *«no está firmado digitalmente»*.
+El `.bat` lleva el PowerShell dentro, detrás de un marcador, lo extrae a un
+temporal y lo ejecuta con la política en Bypass, que ignora esa marca.
+
+Lo genera [`build/New-ProbadorBat.ps1`](build/New-ProbadorBat.ps1) desde
+[`tools/Probar-Comunicacion.ps1`](tools/Probar-Comunicacion.ps1), que es la
+única fuente. El generador extrae lo que quedaría incrustado y lo pasa por el
+analizador de PowerShell: si no parsea, no hay archivo. Sin esa comprobación un
+`.bat` roto sólo se descubre al ejecutarlo en el aula.
+
+**No modifica nada**: solo lee y consulta. Códigos de salida: `0` todo bien ·
+`1` hay algo que bloquea · `2` sólo avisos.
+
+### Qué lleva el paquete de evidencias
+
+```text
+AVACOM-diagnostico-<fecha>.zip
+├── informe.txt                        el diagnóstico legible
+├── respuestas/
+│   ├── biblioteca-salud.json          /v1/salud de la Biblioteca
+│   ├── biblioteca-cursos.json         SUS cursos, preguntados directamente
+│   ├── biblioteca-catalogo.json       su contenido instalado
+│   ├── biblioteca-enlace.json         la nota de enlace (sin la ficha)
+│   ├── lms-health.json                /health/ del backend
+│   └── lms-cursos.json                los cursos que ENTREGA el LMS
+└── logs/                              los registros del servicio
+```
+
+Las dos listas de cursos, una al lado de la otra, son lo que permite decidir
+quién pierde los cursos sin tener acceso al equipo. La ficha de la Biblioteca se
+sustituye antes de escribir nada: es una credencial y no sale del nodo.
+
+Lo que comprueba, en orden:
+
+| # | Eslabón | Qué distingue |
+|---|---|---|
+| 1–2 | Instalación y configuración del nodo | Si `AVACOM_CONTENIDO_ENLACE` quedó apuntando a la nota del host de pruebas |
+| 3–4 | Servicio y puerto | Servicio parado, inicio no automático, un `runserver` compitiendo, escucha sólo en loopback |
+| 5 | La API local | Si contesta, y si quien contesta en ese puerto es de verdad el backend |
+| 6 | La nota de enlace | Nota ausente, incompleta, de una sesión anterior, o ilegible por la cuenta del servicio |
+| 7 | **Contacto directo con la Biblioteca** | Habla con ella con la ficha de la nota, sin pasar por el backend |
+| 8 | Lo que ve el backend | Compara 6 y 7 con `/health/` |
+| 9 | Extremo a extremo por capacidad | `medio`, `leccion`, `evaluacion`, `voz` |
+| 9 | **Cursos: Biblioteca vs LMS** | Compara los que ella tiene con los que él entrega |
+| 10 | **Errores de Python** | Clasifica los tracebacks y marca los que ocurren en hilos de Waitress |
+| 11 | Interfaz y tabletas | Regla de firewall, IP del nodo, interfaz de desarrollo abierta por error |
+
+El apartado 7 es el que gana el diagnóstico. Dos fallos que se ven idénticos
+desde el aula tienen causas opuestas:
+
+- el script **no** alcanza la Biblioteca → el problema es de la Biblioteca
+  (pestaña «Contenido AVACOM» sin abrir, nota vieja, puerto muerto);
+- el script **sí** la alcanza y el backend no → el problema es del backend
+  (nota forzada por variable de entorno, permisos de la cuenta del servicio, o
+  el servicio arrastrando un error y necesitando reinicio).
+
+El apartado 9 responde la pregunta del aula comparando recuentos, y sólo hay
+tres desenlaces: la Biblioteca ofrece 0 (el problema es suyo, no hay contenido
+publicado o la política de la escuela lo oculta), ofrece N y el LMS entrega N
+(la cadena funciona y el fallo está en la interfaz), u ofrece N y el LMS entrega
+0 (los cursos se pierden dentro del backend). Además prueba cada capacidad con
+una referencia que a propósito no existe. No importa el contenido, importa **qué tipo** de fallo vuelve, porque
+cada uno señala un eslabón distinto: `404` significa que la petición llegó
+hasta la Biblioteca y volvió (el enlace funciona), `501` que el enlace funciona
+pero la Biblioteca no publica esa capacidad, `503` que el backend no la
+alcanza, y `502` que la Biblioteca falló por su cuenta.
+
+### Errores de Python en hilos
+
+Waitress sirve con ocho hilos, y un error dentro de uno de ellos es el más
+difícil de ver: revienta una petición suelta, la interfaz muestra un cuelgue o
+un 500, y el servicio sigue apareciendo «en marcha». El apartado 10 los busca
+en los registros, los agrupa por excepción y marca con `Hilo ·` los de esa
+clase: SQLite usado desde otro hilo, `database is locked` por concurrencia,
+`SynchronousOnlyOperation`, `Exception while serving` de Waitress y bucles de
+eventos ausentes. De cada grupo dice qué es y qué hacer.
+
+Para analizar registros traídos de otro equipo, sin tocar ese equipo:
+
+```powershell
+.\Probar-Comunicacion.ps1 -CarpetaDeLogs C:\logs-del-nodo
+```
+
 ## Convivencia con AVACOM Biblioteca
 
 Los dos productos pueden estar en el mismo equipo. Nada se comparte salvo la
@@ -220,8 +320,11 @@ que acepta un push a GitHub, y cada versión añadiría otro tanto al historial.
 Se distribuye como *release asset*, que es donde GitHub espera un binario:
 
 ```bash
-gh release create v2.0.0 installer/latest/AVACOM-OPS-Master-Setup-2.0.0.exe installer/latest/SHA256.txt --title "AVACOM OPS Master 2.0.0" --notes "Instalador de AVACOM OPS Master y su backend."
+gh release create v2.0.0 installer/latest/AVACOM-OPS-Master-Setup-2.0.0.exe installer/latest/SHA256.txt installer/tools/AVACOM-Probar-Comunicacion.bat --title "AVACOM OPS Master 2.0.0" --notes "Instalador de AVACOM OPS Master y su backend."
 ```
+
+El `.bat` del diagnóstico se adjunta a la release para poder revisar un nodo sin
+clonar el repositorio en él: se descarga y se toca.
 
 En el repositorio quedan el código del instalador, el script que lo reconstruye
 y `SHA256.txt`, que permite verificar el `.exe` descargado:
