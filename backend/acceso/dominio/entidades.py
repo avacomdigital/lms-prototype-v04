@@ -58,9 +58,9 @@ class PoliticaCredencial:
 
     id: str
     organizacion_id: str
-    perfil: Menu                            # a quién le aplica: student / teacher / admin
+    perfil: Menu                            # a quién le aplica: student / teacher / admin / reports / technician
     tipo_identificador: TipoIdentificador   # con qué se identifica: DNI, código estudiantil, correo
-    tipo_secreto: TipoSecreto               # PIN (sólo números) o PASSWORD (contraseña)
+    tipo_secreto: TipoSecreto               # PIN (sólo números), PASSWORD (contraseña) o AVATAR (código gráfico)
     longitud_minima: int                    # 6 para un PIN de aula, 8 para docentes, 12 para administración
     exige_mayuscula: bool                   # las cuatro «exige_*» sólo tienen sentido con contraseña;
     exige_minuscula: bool                   # en un PIN se ignoran, porque un PIN es sólo dígitos
@@ -74,6 +74,8 @@ class PoliticaCredencial:
     permite_acceso_temporal: bool           # si a este perfil se le puede dar el «pase de emergencia» de examen
     creado_en: int
     actualizado_en: int
+    nivel_clave: str | None = None          # None = política del perfil; con valor = excepción para ese nivel educativo (BR-024)
+    inactividad_min: int = 20               # FUN-009: minutos sin actividad tras los que la sesión se cierra sola
 
     def validar(self) -> None:
         """Impide que un colegio se configure a sí mismo un reglamento absurdo.
@@ -84,7 +86,10 @@ class PoliticaCredencial:
         comprobaciones son el suelo por debajo del cual no se puede bajar: si algo
         no cuadra, el cambio se rechaza y el reglamento anterior sigue vigente.
         """
-        if self.longitud_minima < 4:
+        if self.tipo_secreto is TipoSecreto.AVATAR:
+            if self.perfil is not Menu.STUDENT:
+                raise ValueError("El avatar sólo se admite para estudiantes (BR-024).")
+        elif self.longitud_minima < 4:
             raise ValueError("La longitud mínima no puede ser menor que 4.")
         if self.tipo_secreto is TipoSecreto.PIN and not 4 <= self.longitud_minima <= 8:
             raise ValueError("Un PIN tiene entre 4 y 8 dígitos.")
@@ -94,6 +99,8 @@ class PoliticaCredencial:
             raise ValueError("Permita al menos 3 intentos antes de bloquear.")
         if self.duracion_sesion_min < 5 or self.duracion_sesion_min > 24 * 60:
             raise ValueError("La sesión dura entre 5 minutos y 24 horas.")
+        if self.inactividad_min < 5 or self.inactividad_min > self.duracion_sesion_min:
+            raise ValueError("La inactividad se mide en minutos: al menos 5 y nunca más que la duración de la sesión.")
         if self.bloqueo_minutos < 1 or self.ventana_intentos_min < 1:
             raise ValueError("Ventana y bloqueo se expresan en minutos mayores que cero.")
 
@@ -147,6 +154,10 @@ class Usuario:
     actualizado_en: int
     creado_por: str | None = None
     ultimo_acceso_en: int | None = None
+    # Admisión nominal (JRN-007, MSG-023): el profesor deja entrar a un alumno «por su nombre» y se
+    # vincula después con la persona definitiva. Mientras tanto la cuenta es provisional.
+    provisional: bool = False
+    vinculado_a: str | None = None
 
     @property
     def activo(self) -> bool:
@@ -166,6 +177,8 @@ class Persona:
 
 @dataclass
 class Identificador:
+    """Identificador externo (DEC-048): matrícula, documento o clave emitida por la instalación."""
+
     id: str
     usuario_id: str
     tipo: TipoIdentificador
@@ -173,6 +186,13 @@ class Identificador:
     es_login: bool
     creado_en: int
     verificado_en: int | None = None
+    emisor: str = ""               # institución o instalación que lo emitió (código de la organización por defecto)
+    principal: bool = False        # sólo uno por persona: el que se muestra y el que vincula entre nodos
+    retirado_en: int | None = None  # CV-05: nada se borra; un identificador que deja de valer se retira
+
+    @property
+    def vigente(self) -> bool:
+        return self.retirado_en is None
 
 
 @dataclass
@@ -213,6 +233,31 @@ class UsuarioPermiso:
 
 
 @dataclass
+class UsuarioRol:
+    """Asignación de un rol a una persona con alcance concreto y vigencia (m01_persona_rol del Maestro, BR-021).
+
+    Una persona puede tener varios roles vigentes, pero en cada sesión trabaja con uno solo,
+    elegido al entrar. El alcance de la asignación acota al del rol: un «Coordinador» asignado
+    con alcance LEVEL=secundaria no llega a primaria aunque su rol diga ORGANIZATION.
+    """
+
+    id: str
+    usuario_id: str
+    rol_id: str
+    alcance_tipo: Alcance          # ORGANIZATION (toda la instalación), LEVEL (un nivel) o ASSIGNED_GROUPS (un grupo)
+    desde: int
+    alcance_id: str | None = None  # nivel_clave o grupo_id; nulo cuando es toda la organización
+    hasta: int | None = None
+    asignado_por: str | None = None
+    revocado_en: int | None = None
+
+    def vigente(self, ahora: int) -> bool:
+        if self.revocado_en is not None or ahora < self.desde:
+            return False
+        return self.hasta is None or ahora < self.hasta
+
+
+@dataclass
 class Grupo:
     id: str
     organizacion_id: str
@@ -222,6 +267,7 @@ class Grupo:
     activo: bool
     creado_en: int
     politica_credencial_id: str | None = None
+    nivel_clave: str | None = None  # preescolar · primaria · secundaria · bachillerato · preuniversitario
 
 
 @dataclass
@@ -261,9 +307,15 @@ class Sesion:
     revocada_en: int | None = None
     motivo_revocacion: str | None = None
     evaluacion_ref: str | None = None
+    rol_id: str | None = None  # el rol EFECTIVO de esta sesión (BR-021): uno solo, elegido al entrar
 
     def vigente(self, ahora: int) -> bool:
         return self.revocada_en is None and ahora < self.expira_en
+
+    def inactiva(self, ahora: int, inactividad_min: int) -> bool:
+        """FUN-009: la sesión superó el tiempo de inactividad configurado."""
+        ultimo = self.ultimo_uso_en or self.emitida_en
+        return ahora - ultimo > inactividad_min * 60_000
 
 
 @dataclass

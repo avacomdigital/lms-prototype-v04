@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 
 from . import errores, plantillas
 from .entidades import Concesion, IntentoAcceso, PoliticaCredencial, Principal, Rol, UsuarioPermiso
-from .valores import Alcance, ClaseSesion, Password, Pin, ResultadoIntento, TipoSecreto
+from .valores import Alcance, Avatar, ClaseSesion, Password, Pin, ResultadoIntento, TipoSecreto
 
 # ------------------------------------------------------------------ objetivos
 
@@ -61,21 +61,28 @@ class Decision:
             raise errores.DebeCambiarCredencial(**extra)
         if self.codigo == "sesion_temporal_limitada":
             raise errores.SesionTemporalLimitada(**extra)
-        # 403 = no puede hacer esta operación en absoluto; 404 = puede, pero no sobre este objetivo
-        # (no se revela si existe). Otra organización siempre se oculta.
-        if self.codigo == "fuera_de_organizacion" or (ocultar_existencia and self.alcance_concedido is not None):
-            raise errores.NoEncontrado(**extra)
+        # Regla de alcance del Documento Maestro: «cualquier objeto fuera de esa unión se evalúa como
+        # acceso denegado, nunca como objeto inexistente, para no revelar por omisión». Por eso fuera de
+        # alcance es siempre 403; el 404 queda reservado para lo que de verdad no existe.
+        # `ocultar_existencia` se conserva por compatibilidad de firma y ya no cambia la respuesta.
         raise errores.SinPermiso(**extra)
 
 
 @dataclass
 class ContextoActor:
-    """Todo lo que la política necesita saber del actor; lo carga el caso de uso una sola vez."""
+    """Todo lo que la política necesita saber del actor; lo carga el caso de uso una sola vez.
+
+    `grupos_docente` es la unión que el Documento Maestro llama «propio» para un profesor: los grupos
+    donde es docente vigente MÁS los que le abre la asignación de su rol efectivo (un grupo concreto
+    o todos los de un nivel educativo). `tope` es el alcance de esa asignación (BR-021): acota al del
+    rol. Un rol que dice ORGANIZATION asignado con alcance LEVEL llega sólo hasta LEVEL.
+    """
 
     principal: Principal
     concesiones: dict[str, Concesion]
-    grupos_docente: frozenset[str] = field(default_factory=frozenset)  # grupos donde es DOCENTE vigente
+    grupos_docente: frozenset[str] = field(default_factory=frozenset)  # grupos donde es DOCENTE vigente o que le abre su asignación
     grupos_miembro: frozenset[str] = field(default_factory=frozenset)  # grupos donde es miembro vigente (cualquier papel)
+    tope: Alcance = Alcance.ORGANIZATION                                # alcance de la asignación del rol efectivo
 
 
 # ---------------------------------------------------------------- autorización
@@ -130,7 +137,12 @@ class PoliticaAutorizacion:
         return None
 
     def alcance_concedido(self, ctx: ContextoActor, permiso: str) -> Alcance | None:
-        """El alcance efectivo con el que el actor tiene el permiso, tras las reglas transversales."""
+        """El alcance efectivo con el que el actor tiene el permiso, tras las reglas transversales.
+
+        Es el mínimo entre lo que dice el rol y lo que dice la asignación del rol (`tope`).
+        LEVEL sólo tiene sentido cuando la asignación fija un nivel; si el rol dice LEVEL y la
+        asignación es de toda la organización, se resuelve como «sus grupos».
+        """
         if self.transversal(ctx, permiso) is not None:
             return None
         concesion = ctx.concesiones.get(permiso)
@@ -138,7 +150,10 @@ class PoliticaAutorizacion:
             return None
         if ctx.principal.clase_sesion is ClaseSesion.TEMPORAL:
             return Alcance.SELF
-        return concesion.alcance
+        efectivo = Alcance.minimo(concesion.alcance, ctx.tope)
+        if efectivo is Alcance.LEVEL and ctx.tope is not Alcance.LEVEL:
+            efectivo = Alcance.ASSIGNED_GROUPS
+        return efectivo
 
     def decidir(self, ctx: ContextoActor, permiso: str, objetivo: Objetivo,
                 grupos_objetivo: frozenset[str] = frozenset()) -> Decision:
@@ -182,6 +197,12 @@ class PoliticaFortaleza:
     @staticmethod
     def validar(secreto: str, politica: PoliticaCredencial) -> list[str]:
         reglas: list[str] = []
+        if politica.tipo_secreto is TipoSecreto.AVATAR:
+            try:
+                Avatar(secreto)
+            except ValueError as error:
+                return [str(error)]
+            return reglas
         if politica.tipo_secreto is TipoSecreto.PIN:
             try:
                 pin = Pin(secreto)
@@ -256,6 +277,8 @@ class PoliticaBloqueo:
         return EstadoBloqueo(False, fallos, None)
 
 
-def politica_aplicable(del_perfil: PoliticaCredencial, del_grupo: PoliticaCredencial | None) -> PoliticaCredencial:
-    """El grupo puede sobrescribir la política del perfil (grados superiores con contraseña)."""
-    return del_grupo or del_perfil
+def politica_aplicable(del_perfil: PoliticaCredencial, del_grupo: PoliticaCredencial | None,
+                       del_nivel: PoliticaCredencial | None = None) -> PoliticaCredencial:
+    """Qué reglamento manda sobre una persona: el de su grupo, si tiene uno propio; si no, el de su
+    nivel educativo (BR-024: preescolar con avatar); si no, el de su perfil (BR-023)."""
+    return del_grupo or del_nivel or del_perfil

@@ -103,11 +103,12 @@ class DispositivoView(VistaAcceso):
 
 
 class SesionesView(VistaPublica):
-    """POST = iniciar sesión (público). GET = listar sesiones (con sesión y permiso)."""
+    """POST = iniciar sesión (FUN-004 / FUN-005, público). GET = listar sesiones (con sesión y permiso)."""
 
     def post(self, request):
         datos = _validar(s.LoginEntrada, request.data)
-        return Response(cu.AutenticarUsuario(self.s).ejecutar(datos["identificador"], datos["secreto"], datos["dispositivo"] or None))
+        return Response(cu.AutenticarUsuario(self.s).ejecutar(datos["identificador"], datos["secreto"],
+                                                               datos["dispositivo"] or None, datos["rol"] or None))
 
     def get(self, request):
         principal = _exigir_principal(request)
@@ -164,6 +165,16 @@ class UsuariosView(VistaAcceso):
         return Response(cu.CrearUsuario(self.s).ejecutar(request.user, datos), status=201)
 
 
+class ImportarUsuariosView(VistaAcceso):
+    """FUN-003: carga masiva desde archivo delimitado."""
+
+    def post(self, request):
+        datos = _validar(s.ImportacionEntrada, request.data)
+        return Response(cu.ImportarUsuarios(self.s).ejecutar(
+            request.user, contenido=datos["contenido"] or None, filas=datos["filas"] or None,
+            delimitador=datos["delimitador"], grupo_id=datos["grupo_id"] or None))
+
+
 class UsuarioView(VistaAcceso):
     def get(self, request, pk: str):
         return Response(cu.VerUsuario(self.s).ejecutar(request.user, pk))
@@ -173,26 +184,59 @@ class UsuarioView(VistaAcceso):
         return Response(cu.ActualizarUsuario(self.s).ejecutar(request.user, pk, cambios))
 
 
-class UsuarioRolView(VistaAcceso):
-    def put(self, request, pk: str):
-        datos = _validar(s.RolAsignacion, request.data)
-        return Response(cu.AsignarRol(self.s).ejecutar(request.user, pk, datos["rol"]))
+class UsuarioVincularView(VistaAcceso):
+    def post(self, request, pk: str):
+        datos = _validar(s.VinculacionEntrada, request.data)
+        return Response(cu.VincularUsuarioProvisional(self.s).ejecutar(request.user, pk, datos["usuario_definitivo_id"]))
 
 
-class UsuarioPermisosView(VistaAcceso):
+class UsuarioRolesView(VistaAcceso):
+    """FUN-002: asignaciones de rol con alcance y vigencia."""
+
     def get(self, request, pk: str):
-        return Response(cu.VerUsuario(self.s).ejecutar(request.user, pk)["permisos_adicionales"])
+        return Response(cu.VerUsuario(self.s).ejecutar(request.user, pk)["roles"])
 
     def post(self, request, pk: str):
-        datos = _validar(s.PermisoAdicionalEntrada, request.data)
-        return Response(cu.OtorgarPermiso(self.s).ejecutar(request.user, pk, datos["permiso"], datos["alcance"],
-                                                            datos["motivo"], datos.get("vigente_hasta")), status=201)
+        datos = _validar(s.RolAsignacion, request.data)
+        return Response(cu.AsignarRol(self.s).ejecutar(
+            request.user, pk, datos["rol"], datos["alcance_tipo"], datos.get("alcance_id"),
+            datos.get("vigente_hasta"), datos["principal"]), status=201)
+
+    def put(self, request, pk: str):
+        """Compatibilidad: PUT fija el rol principal con alcance de organización."""
+        datos = _validar(s.RolAsignacion, request.data)
+        return Response(cu.AsignarRol(self.s).ejecutar(
+            request.user, pk, datos["rol"], datos["alcance_tipo"], datos.get("alcance_id"),
+            datos.get("vigente_hasta"), True))
 
 
-class UsuarioPermisoView(VistaAcceso):
-    def delete(self, request, pk: str, permiso: str):
-        cu.RevocarPermiso(self.s).ejecutar(request.user, pk, permiso)
+class UsuarioRolView(VistaAcceso):
+    def delete(self, request, pk: str, asignacion_id: str):
+        cu.RevocarRolAsignado(self.s).ejecutar(request.user, pk, asignacion_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UsuarioEscaladasView(VistaAcceso):
+    def get(self, request, pk: str):
+        return Response(cu.VerUsuario(self.s).ejecutar(request.user, pk)["escaladas"])
+
+    def post(self, request, pk: str):
+        datos = _validar(s.EscaladaEntrada, request.data)
+        return Response(cu.OtorgarEscalada(self.s).ejecutar(request.user, pk, datos["permiso"], datos["alcance"],
+                                                             datos["motivo"], datos["vigente_hasta"]), status=201)
+
+
+class UsuarioEscaladaView(VistaAcceso):
+    def delete(self, request, pk: str, permiso: str):
+        cu.RevocarEscalada(self.s).ejecutar(request.user, pk, permiso)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UsuarioSesionesView(VistaAcceso):
+    """FUN-010: revocar todas las sesiones activas de un usuario."""
+
+    def delete(self, request, pk: str):
+        return Response(cu.RevocarSesionesDeUsuario(self.s).ejecutar(request.user, pk))
 
 
 class RestablecerCredencialView(VistaAcceso):
@@ -252,7 +296,8 @@ class PoliticasView(VistaAcceso):
 class PoliticaView(VistaAcceso):
     def put(self, request, perfil: str):
         cambios = _validar(s.PoliticaCambios, request.data, parcial=True)
-        return Response(cu.ConfigurarPolitica(self.s).ejecutar(request.user, perfil, cambios))
+        return Response(cu.ConfigurarPolitica(self.s).ejecutar(request.user, perfil, cambios,
+                                                                nivel=request.query_params.get("nivel") or None))
 
 
 class GruposView(VistaAcceso):

@@ -17,7 +17,7 @@ def sembrar(apps, schema_editor):
     Rol = apps.get_model("acceso", "Rol")
     RolPermiso = apps.get_model("acceso", "RolPermiso")
     ahora = int(time.time() * 1000)
-    for codigo, modulo, descripcion, maximo in plantillas.PERMISOS:
+    for codigo, modulo, descripcion, maximo, _sensible in plantillas.PERMISOS:
         Permiso.objects.update_or_create(codigo=codigo, defaults={
             "modulo": modulo, "descripcion": descripcion, "alcance_maximo": maximo.value})
     for codigo, (nombre, menu, nivel, permisos) in plantillas.ROLES_SISTEMA.items():

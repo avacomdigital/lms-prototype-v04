@@ -49,14 +49,21 @@ class PoliticaCredencial(models.Model):
     duracion_sesion_min = models.PositiveIntegerField(default=240)
     vigencia_credencial_dias = models.PositiveIntegerField(null=True, blank=True)
     permite_acceso_temporal = models.BooleanField(default=False)
+    # BR-024: excepción del perfil para un nivel educativo (preescolar con avatar). Nulo = política general.
+    nivel_clave = models.CharField(max_length=24, null=True, blank=True)
+    # FUN-009: minutos sin actividad tras los que la sesión se cierra sola.
+    inactividad_min = models.PositiveSmallIntegerField(default=20)
     creado_en = models.BigIntegerField(default=ahora_ms)
     actualizado_en = models.BigIntegerField(default=ahora_ms)
 
     class Meta:
         db_table = "m01_politica_credencial"
         constraints = [
-            models.UniqueConstraint(fields=["organizacion", "perfil"], name="uq_m01_politica_perfil"),
-            models.CheckConstraint(condition=Q(longitud_minima__gte=4), name="ck_m01_politica_longitud"),
+            models.UniqueConstraint(fields=["organizacion", "perfil"], condition=Q(nivel_clave__isnull=True),
+                                    name="uq_m01_politica_perfil"),
+            models.UniqueConstraint(fields=["organizacion", "perfil", "nivel_clave"], condition=Q(nivel_clave__isnull=False),
+                                    name="uq_m01_politica_perfil_nivel"),
+            models.CheckConstraint(condition=Q(longitud_minima__gte=4) | Q(tipo_secreto="AVATAR"), name="ck_m01_politica_longitud"),
             models.CheckConstraint(
                 condition=~Q(tipo_secreto="PIN") | (Q(longitud_minima__gte=4) & Q(longitud_minima__lte=8)),
                 name="ck_m01_politica_pin_rango",
@@ -117,10 +124,14 @@ class Usuario(models.Model):
     actualizado_en = models.BigIntegerField(default=ahora_ms)
     creado_por = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
     ultimo_acceso_en = models.BigIntegerField(null=True, blank=True)
+    # Admisión nominal (JRN-007): cuenta creada por el profesor «por su nombre», pendiente de vincular.
+    provisional = models.BooleanField(default=False)
+    vinculado_a = models.ForeignKey("self", on_delete=models.SET_NULL, null=True, blank=True, related_name="provisionales")
 
     class Meta:
         db_table = "m01_usuario"
-        indexes = [models.Index(fields=["organizacion", "estado"]), models.Index(fields=["rol"])]
+        indexes = [models.Index(fields=["organizacion", "estado"]), models.Index(fields=["rol"]),
+                   models.Index(fields=["vinculado_a"])]
 
 
 class Persona(models.Model):
@@ -146,12 +157,21 @@ class IdentificadorUsuario(models.Model):
     es_login = models.BooleanField(default=True)
     verificado_en = models.BigIntegerField(null=True, blank=True)
     creado_en = models.BigIntegerField(default=ahora_ms)
+    # DEC-048: quién emitió el identificador (la institución o esta instalación). Vincula entre nodos.
+    emisor = models.CharField(max_length=64, blank=True, default="")
+    principal = models.BooleanField(default=False)
+    # CV-05: nada se borra. Un identificador que deja de valer se retira con fecha.
+    retirado_en = models.BigIntegerField(null=True, blank=True)
 
     class Meta:
         db_table = "m01_identificador_usuario"
         constraints = [
-            models.UniqueConstraint(fields=["tipo", "valor_hmac"], name="uq_m01_identificador_valor"),
-            models.UniqueConstraint(fields=["usuario", "tipo"], name="uq_m01_identificador_tipo"),
+            models.UniqueConstraint(fields=["tipo", "valor_hmac"], condition=Q(retirado_en__isnull=True),
+                                    name="uq_m01_identificador_valor"),
+            models.UniqueConstraint(fields=["usuario", "tipo"], condition=Q(retirado_en__isnull=True),
+                                    name="uq_m01_identificador_tipo"),
+            models.UniqueConstraint(fields=["usuario"], condition=Q(principal=True) & Q(retirado_en__isnull=True),
+                                    name="uq_m01_identificador_principal"),
         ]
         indexes = [models.Index(fields=["valor_hmac"])]
 
@@ -197,12 +217,43 @@ class UsuarioPermiso(models.Model):
         ]
 
 
+class UsuarioRol(models.Model):
+    """Asignación de rol con alcance concreto y vigencia (m01_persona_rol del Documento Maestro, BR-021).
+
+    `Usuario.rol` sigue siendo el rol principal (el que se usa si la persona no elige otro al entrar).
+    Aquí van todos los roles vigentes de la persona; en cada sesión trabaja con uno solo.
+    """
+
+    id = models.CharField(max_length=36, primary_key=True)
+    usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name="asignaciones_rol")
+    rol = models.ForeignKey(Rol, on_delete=models.PROTECT, related_name="asignaciones")
+    alcance_tipo = models.CharField(max_length=20, default="ORGANIZATION")  # ORGANIZATION / LEVEL / ASSIGNED_GROUPS
+    alcance_id = models.CharField(max_length=36, null=True, blank=True)        # nivel_clave o grupo_id
+    desde = models.BigIntegerField(default=ahora_ms)
+    hasta = models.BigIntegerField(null=True, blank=True)
+    asignado_por = models.ForeignKey(Usuario, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    revocado_en = models.BigIntegerField(null=True, blank=True)
+
+    class Meta:
+        db_table = "m01_usuario_rol"
+        constraints = [
+            models.UniqueConstraint(fields=["usuario", "rol", "alcance_tipo", "alcance_id"],
+                                    condition=Q(revocado_en__isnull=True), name="uq_m01_usuario_rol_vigente"),
+            models.CheckConstraint(condition=Q(hasta__isnull=True) | Q(hasta__gt=F("desde")), name="ck_m01_usuario_rol_vigencia"),
+            models.CheckConstraint(condition=Q(alcance_tipo="ORGANIZATION") | Q(alcance_id__isnull=False),
+                                   name="ck_m01_usuario_rol_alcance_id"),
+        ]
+        indexes = [models.Index(fields=["usuario", "revocado_en"])]
+
+
 class Grupo(models.Model):
     id = models.CharField(max_length=36, primary_key=True)
     organizacion = models.ForeignKey(Organizacion, on_delete=models.CASCADE, related_name="grupos")
     codigo = models.CharField(max_length=32)
     nombre = models.CharField(max_length=120)
     periodo = models.CharField(max_length=16)
+    # Nivel educativo del Documento Maestro: decide la interfaz y permite políticas de acceso por nivel.
+    nivel_clave = models.CharField(max_length=24, null=True, blank=True)
     politica_credencial = models.ForeignKey(PoliticaCredencial, on_delete=models.SET_NULL, null=True, blank=True, related_name="grupos")
     activo = models.BooleanField(default=True)
     creado_en = models.BigIntegerField(default=ahora_ms)
@@ -255,6 +306,8 @@ class Sesion(models.Model):
     revocada_en = models.BigIntegerField(null=True, blank=True)
     motivo_revocacion = models.CharField(max_length=64, null=True, blank=True)
     evaluacion_ref = models.CharField(max_length=200, null=True, blank=True)
+    # BR-021: el rol EFECTIVO de la sesión, elegido al entrar. Nulo en filas anteriores = rol principal del usuario.
+    rol = models.ForeignKey(Rol, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
 
     class Meta:
         db_table = "m01_sesion"

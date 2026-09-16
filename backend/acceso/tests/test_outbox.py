@@ -11,11 +11,14 @@ from .base import BaseAcceso
 
 class OutboxTests(BaseAcceso):
     def test_crear_usuario_deja_evento_y_auditoria(self):
-        eventos = m.EventoSalida.objects.filter(tipo_evento="acceso.usuario.creado", agregado_id=self.estudiante_id)
+        eventos = m.EventoSalida.objects.filter(tipo_evento="identidad.usuario.creado.v1", agregado_id=self.estudiante_id)
         self.assertEqual(eventos.count(), 1)
         self.assertEqual(eventos.first().carga["rol"], "STUDENT")
         self.assertIsNone(eventos.first().publicado_en)
-        self.assertTrue(Auditoria.objects.filter(accion="acceso.usuario.creado", objeto_id=self.estudiante_id).exists())
+        self.assertTrue(Auditoria.objects.filter(accion="identidad.usuario.creado", objeto_id=self.estudiante_id).exists())
+        # todos los eventos del módulo siguen la nomenclatura del Documento Maestro
+        for ev in m.EventoSalida.objects.all():
+            self.assertRegex(ev.tipo_evento, r"^identidad\.[a-z_]+(\.[a-z_]+)?\.v1$")
         # la carga del outbox nunca lleva PII ni secretos
         for ev in m.EventoSalida.objects.all():
             texto = str(ev.carga)

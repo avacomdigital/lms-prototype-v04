@@ -1,4 +1,4 @@
-"""Instalación, login, bloqueo, identidad, cierre y revocación de sesiones."""
+"""Instalación, login, bloqueo, identidad, sesión única, inactividad, cierre y revocación de sesiones."""
 from __future__ import annotations
 
 from acceso import models as m
@@ -20,10 +20,14 @@ class InstalacionYConfiguracionTests(BaseAcceso):
         datos = r.json()
         self.assertTrue(datos["instalado"])
         self.assertEqual(datos["organizacion"]["locale"], "es-CO")
-        self.assertEqual(datos["perfiles"]["student"], {"tipo_identificador": "CODIGO_ESTUDIANTIL", "tipo_secreto": "PIN",
-                                                         "longitud_minima": 6, "permite_acceso_temporal": True})
+        student = datos["perfiles"]["student"]
+        self.assertEqual((student["tipo_identificador"], student["tipo_secreto"], student["longitud_minima"]),
+                         ("CODIGO_ESTUDIANTIL", "PIN", 6))
+        self.assertEqual(student["niveles"], {})
         self.assertEqual(datos["perfiles"]["teacher"]["tipo_secreto"], "PASSWORD")
-        self.assertEqual(datos["duracion_sesion_min"], 240)
+        self.assertEqual(set(datos["perfiles"]), {"student", "teacher", "admin", "reports", "technician"})
+        self.assertEqual((datos["duracion_sesion_min"], datos["inactividad_min"]), (240, 30))
+        self.assertIn("preescolar", datos["niveles_educativos"])
         self.assertTrue(datos["claves_derivadas"])  # el prototipo deriva de SECRET_KEY y lo dice
 
     def test_health_informa_del_modulo(self):
@@ -36,8 +40,14 @@ class InstalacionYConfiguracionTests(BaseAcceso):
         ident = m.IdentificadorUsuario.objects.get(usuario_id=self.estudiante_id, tipo="CODIGO_ESTUDIANTIL")
         self.assertNotIn(self.ESTUDIANTE_CODIGO, ident.valor_cifrado)
         self.assertEqual(len(ident.valor_hmac), 64)
+        self.assertEqual(ident.emisor, "IE-SANJOSE")
+        self.assertTrue(ident.principal)
         credencial = m.Credencial.objects.get(usuario_id=self.estudiante_id, activa=True)
         self.assertTrue(credencial.hash.startswith("$argon2id$"))
+
+    def test_toda_persona_tiene_asignacion_de_rol(self):
+        self.assertEqual(m.UsuarioRol.objects.filter(usuario_id=self.estudiante_id, revocado_en__isnull=True).count(), 1)
+        self.assertEqual(m.UsuarioRol.objects.get(usuario_id=self.admin_id).alcance_tipo, "ORGANIZATION")
 
 
 class LoginTests(BaseAcceso):
@@ -48,9 +58,13 @@ class LoginTests(BaseAcceso):
         self.assertEqual(datos["tipo"], "Bearer")
         self.assertEqual(datos["usuario"]["menu"], "student")
         self.assertFalse(datos["usuario"]["debe_cambiar_credencial"])
+        self.assertIsNone(datos["sesion_anterior"])
+        self.assertEqual(datos["roles_disponibles"], ["STUDENT"])
+        self.assertEqual(datos["inactividad_min"], 30)
         self.assertAlmostEqual(datos["expira_en"] - m.Sesion.objects.get(id=datos["sesion_id"]).emitida_en, 240 * 60_000, delta=5)
         yo = self.con_token(datos["token"]).get("/api/acceso/yo/").json()
         self.assertEqual(yo["usuario"]["rol"], "STUDENT")
+        self.assertEqual(yo["rol_efectivo"], {"codigo": "STUDENT", "menu": "student", "alcance_asignacion": "ORGANIZATION"})
         self.assertEqual(yo["usuario"]["persona"]["nombres"], "Juan")
         self.assertEqual(yo["sesion"]["dispositivo"], "tableta-07")
         self.assertIn({"codigo": "student.exam.attempt", "alcance": "SELF", "origen": "rol", "vigente_hasta": None}, yo["permisos"])
@@ -60,7 +74,7 @@ class LoginTests(BaseAcceso):
         self.assertEqual(self.login("80123456", self.DOCENTE_PASS).status_code, 200)
         yo = self.admin.get("/api/acceso/yo/").json()
         self.assertEqual(yo["usuario"]["menu"], "admin")
-        self.assertIn({"codigo": "policy.manage", "alcance": "ORGANIZATION", "origen": "rol", "vigente_hasta": None}, yo["permisos"])
+        self.assertIn({"codigo": "identity.policy.manage", "alcance": "ORGANIZATION", "origen": "rol", "vigente_hasta": None}, yo["permisos"])
 
     def test_credenciales_invalidas_no_revelan_nada(self):
         mal = self.login(self.ESTUDIANTE_CODIGO, "000001")
@@ -81,6 +95,7 @@ class LoginTests(BaseAcceso):
         self.assertEqual(r.status_code, 423)
         self.assertEqual(r.json()["codigo"], "usuario_bloqueado")
         self.assertGreater(r.json()["reintentar_en_seg"], 800)
+        self.assertTrue(m.EventoSalida.objects.filter(tipo_evento="identidad.cuenta.bloqueada.v1", agregado_id=self.estudiante_id).exists())
         # con la clave correcta también está bloqueado
         self.assertEqual(self.login(self.ESTUDIANTE_CODIGO, self.ESTUDIANTE_PIN).status_code, 423)
         ficha = self.docente.get(f"/api/acceso/usuarios/{self.estudiante_id}/").json()
@@ -97,29 +112,82 @@ class LoginTests(BaseAcceso):
         self.assertEqual((r.status_code, r.json()["codigo"]), (401, "sesion_invalida"))
 
 
+class SesionUnicaTests(BaseAcceso):
+    def test_abrir_en_otro_dispositivo_cierra_la_anterior_y_lo_avisa(self):
+        # TST-027 · PAN-103 · MSG-020
+        self.api.post("/api/acceso/dispositivos/", {"identificador": "otra-hw", "nombre": "tableta-03"}, format="json")
+        primera = self.login(self.ESTUDIANTE_CODIGO, self.ESTUDIANTE_PIN, self.TABLETA).json()
+        segunda = self.login(self.ESTUDIANTE_CODIGO, self.ESTUDIANTE_PIN, "otra-hw").json()
+        self.assertEqual(segunda["sesion_anterior"]["sesion_id"], primera["sesion_id"])
+        self.assertEqual(segunda["sesion_anterior"]["dispositivo"], "tableta-07")
+        r = self.con_token(primera["token"]).get("/api/acceso/yo/")
+        self.assertEqual((r.status_code, r.json()["codigo"]), (401, "sesion_cerrada_otro_dispositivo"))
+        self.assertEqual(m.Sesion.objects.get(id=primera["sesion_id"]).motivo_revocacion, "otro_dispositivo")
+        self.assertEqual(self.con_token(segunda["token"]).get("/api/acceso/yo/").status_code, 200)
+        self.assertEqual(m.Sesion.objects.filter(usuario_id=self.estudiante_id, revocada_en__isnull=True).count(), 1)
+
+    def test_una_tableta_compartida_tiene_una_sola_sesion(self):
+        # INV-011 · JRN-022: el siguiente alumno que entra en la misma tableta cierra la del anterior.
+        otro = self.docente.post("/api/acceso/usuarios/", {
+            "rol": "STUDENT", "alias": "María R.", "persona": {"nombres": "María", "apellidos": "Ruiz"},
+            "identificadores": [{"tipo": "CODIGO_ESTUDIANTIL", "valor": "130010"}], "secreto": "480215",
+            "secreto_definitivo": True, "grupo_id": self.grupo["id"]}, format="json").json()
+        juan = self.login(self.ESTUDIANTE_CODIGO, self.ESTUDIANTE_PIN, self.TABLETA).json()
+        maria = self.login("130010", "480215", self.TABLETA).json()
+        self.assertIsNone(maria["sesion_anterior"])
+        self.assertEqual(m.Sesion.objects.get(id=juan["sesion_id"]).motivo_revocacion, "dispositivo_compartido")
+        self.assertEqual(self.con_token(juan["token"]).get("/api/acceso/yo/").status_code, 401)
+        self.assertEqual(m.Sesion.objects.filter(dispositivo_id=self.tableta["id"], revocada_en__isnull=True).count(), 1)
+        self.assertEqual(m.Sesion.objects.get(id=maria["sesion_id"]).usuario_id, otro["id"])
+
+    def test_sesion_se_cierra_por_inactividad(self):
+        # FUN-009
+        r = self.login(self.ESTUDIANTE_CODIGO, self.ESTUDIANTE_PIN).json()
+        m.Sesion.objects.filter(id=r["sesion_id"]).update(ultimo_uso_en=1, emitida_en=1, expira_en=10**14)
+        yo = self.con_token(r["token"]).get("/api/acceso/yo/")
+        self.assertEqual((yo.status_code, yo.json()["codigo"]), (401, "sesion_inactiva"))
+        self.assertEqual(m.Sesion.objects.get(id=r["sesion_id"]).motivo_revocacion, "inactividad")
+        self.assertTrue(m.EventoSalida.objects.filter(tipo_evento="identidad.sesion.cerrada.v1", agregado_id=r["sesion_id"]).exists())
+
+    def test_la_sesion_sobrevive_al_reinicio_del_nodo(self):
+        # FUN-011: la sesión está en la base, no en memoria. Otro proceso con el mismo pase la restaura.
+        r = self.login(self.DOCENTE_DNI, self.DOCENTE_PASS).json()
+        from acceso.infraestructura import contenedor
+        contenedor._cache.clear()  # simula un proceso nuevo tras el reinicio
+        self.assertEqual(self.con_token(r["token"]).get("/api/acceso/yo/").status_code, 200)
+
+
 class SesionesTests(BaseAcceso):
     def test_logout_revoca_la_sesion_actual(self):
         estudiante = self.sesion(self.ESTUDIANTE_CODIGO, self.ESTUDIANTE_PIN)
         self.assertEqual(estudiante.delete("/api/acceso/sesiones/actual/").status_code, 204)
         r = estudiante.get("/api/acceso/yo/")
         self.assertEqual((r.status_code, r.json()["codigo"]), (401, "sesion_revocada"))
+        self.assertEqual(m.Sesion.objects.filter(usuario_id=self.estudiante_id).latest("emitida_en").motivo_revocacion, "persona")
 
     def test_docente_lista_y_revoca_sesiones_de_sus_estudiantes(self):
         estudiante = self.sesion(self.ESTUDIANTE_CODIGO, self.ESTUDIANTE_PIN, self.TABLETA)
         sesiones = self.docente.get(f"/api/acceso/sesiones/?usuario={self.estudiante_id}").json()
         self.assertEqual(len(sesiones), 1)
-        self.assertEqual(sesiones[0]["dispositivo"], "tableta-07")
+        self.assertEqual((sesiones[0]["dispositivo"], sesiones[0]["rol"]), ("tableta-07", "STUDENT"))
         self.assertEqual(self.docente.delete(f"/api/acceso/sesiones/{sesiones[0]['id']}/").status_code, 204)
         self.assertEqual(estudiante.get("/api/acceso/yo/").status_code, 401)
-        self.assertEqual(m.Sesion.objects.get(id=sesiones[0]["id"]).motivo_revocacion, "docente")
-        # el docente no ve las sesiones del administrador
+        self.assertEqual(m.Sesion.objects.get(id=sesiones[0]["id"]).motivo_revocacion, "profesor")
+        # el docente tiene el permiso, pero el administrador no está en su alcance → 403 (nunca 404)
         r = self.docente.get(f"/api/acceso/sesiones/?usuario={self.admin_id}")
-        self.assertEqual(r.status_code, 404)
+        self.assertEqual((r.status_code, r.json()["codigo"]), (403, "sin_permiso"))
+
+    def test_revocar_todas_las_sesiones_de_un_usuario(self):
+        # FUN-010
+        self.login(self.ESTUDIANTE_CODIGO, self.ESTUDIANTE_PIN, self.TABLETA)
+        r = self.admin.delete(f"/api/acceso/usuarios/{self.estudiante_id}/sesiones/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["sesiones_revocadas"], 1)
+        self.assertTrue(m.EventoSalida.objects.filter(tipo_evento="identidad.sesiones.revocadas.v1").exists())
 
     def test_estudiante_no_revoca_sesiones_ajenas(self):
         estudiante = self.sesion(self.ESTUDIANTE_CODIGO, self.ESTUDIANTE_PIN)
         docente_sesion = self.admin.get(f"/api/acceso/sesiones/?usuario={self.docente_id}").json()[0]["id"]
-        # no tiene el permiso en absoluto → 403 (tenerlo pero sin alcance sobre el objetivo sería 404)
         self.assertEqual(estudiante.delete(f"/api/acceso/sesiones/{docente_sesion}/").status_code, 403)
         self.assertIsNone(m.Sesion.objects.get(id=docente_sesion).revocada_en)
 

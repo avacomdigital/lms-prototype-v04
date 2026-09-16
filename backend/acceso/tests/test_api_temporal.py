@@ -31,7 +31,7 @@ class AccesoTemporalTests(BaseAcceso):
         temporal = self.con_token(r.json()["token"])
         yo = temporal.get("/api/acceso/yo/").json()
         self.assertEqual(yo["sesion"]["clase"], "TEMPORAL")
-        self.assertEqual({p["codigo"] for p in yo["permisos"]} & {"credential.change_own", "user.read"}, set())
+        self.assertEqual({p["codigo"] for p in yo["permisos"]} & {"identity.password.change_own", "identity.user.read"}, set())
         r = temporal.get("/api/acceso/usuarios/")
         self.assertEqual((r.status_code, r.json()["codigo"]), (403, "sesion_temporal_limitada"))
         # un solo uso
@@ -76,14 +76,14 @@ class AccesoTemporalTests(BaseAcceso):
         self.assertEqual(temporal.get("/api/acceso/yo/").status_code, 401)
 
     def test_solo_perfiles_con_acceso_temporal_y_solo_dentro_del_alcance(self):
-        # el docente tiene el permiso, pero el administrador no es un estudiante de sus grupos → se oculta
+        # el docente tiene el permiso, pero el administrador no es un estudiante de sus grupos → denegado (nunca «no existe»)
         r = self.docente.post("/api/acceso/autorizaciones-temporales/", {
             "usuario_id": self.admin_id, "tipo": "CODIGO", "motivo": "x"}, format="json")
-        self.assertEqual(r.status_code, 404)
+        self.assertEqual((r.status_code, r.json()["codigo"]), (403, "sin_permiso"))
         # el alcance máximo del permiso es ASSIGNED_GROUPS: ni el administrador lo otorga fuera de un grupo propio
         r = self.admin.post("/api/acceso/autorizaciones-temporales/", {
             "usuario_id": self.estudiante_id, "tipo": "CODIGO", "motivo": "x"}, format="json")
-        self.assertEqual(r.status_code, 404)
+        self.assertEqual(r.status_code, 403)
         # si la política del perfil no admite acceso temporal, el docente recibe 400
         self.assertEqual(self.admin.put("/api/acceso/politicas/student/", {"permite_acceso_temporal": False}, format="json").status_code, 200)
         r = self.otorgar(tipo="CODIGO", dispositivo_id="")

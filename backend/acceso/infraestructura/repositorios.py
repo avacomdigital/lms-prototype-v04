@@ -4,6 +4,7 @@ al cruzar la frontera. Son el único lugar del módulo que conoce `acceso.models
 """
 from __future__ import annotations
 
+import time
 from typing import Iterable
 
 from django.db.models import Q
@@ -55,7 +56,13 @@ class PoliticasDjango:
         return [self._a_entidad(f) for f in m.PoliticaCredencial.objects.filter(organizacion_id=organizacion_id).order_by("perfil")]
 
     def por_perfil(self, organizacion_id: str, perfil: Menu) -> e.PoliticaCredencial | None:
-        f = m.PoliticaCredencial.objects.filter(organizacion_id=organizacion_id, perfil=perfil.value).first()
+        f = m.PoliticaCredencial.objects.filter(organizacion_id=organizacion_id, perfil=perfil.value,
+                                                nivel_clave__isnull=True).first()
+        return self._a_entidad(f) if f else None
+
+    def por_nivel(self, organizacion_id: str, perfil: Menu, nivel_clave: str) -> e.PoliticaCredencial | None:
+        f = m.PoliticaCredencial.objects.filter(organizacion_id=organizacion_id, perfil=perfil.value,
+                                                nivel_clave=nivel_clave).first()
         return self._a_entidad(f) if f else None
 
     def por_id(self, politica_id: str) -> e.PoliticaCredencial | None:
@@ -70,6 +77,7 @@ class PoliticasDjango:
             intentos_maximos=p.intentos_maximos, ventana_intentos_min=p.ventana_intentos_min,
             bloqueo_minutos=p.bloqueo_minutos, duracion_sesion_min=p.duracion_sesion_min,
             vigencia_credencial_dias=p.vigencia_credencial_dias, permite_acceso_temporal=p.permite_acceso_temporal,
+            nivel_clave=p.nivel_clave, inactividad_min=p.inactividad_min,
             creado_en=p.creado_en, actualizado_en=p.actualizado_en))
 
     @staticmethod
@@ -81,7 +89,8 @@ class PoliticasDjango:
             exige_digito=f.exige_digito, exige_simbolo=f.exige_simbolo, intentos_maximos=f.intentos_maximos,
             ventana_intentos_min=f.ventana_intentos_min, bloqueo_minutos=f.bloqueo_minutos,
             duracion_sesion_min=f.duracion_sesion_min, vigencia_credencial_dias=f.vigencia_credencial_dias,
-            permite_acceso_temporal=f.permite_acceso_temporal, creado_en=f.creado_en, actualizado_en=f.actualizado_en)
+            permite_acceso_temporal=f.permite_acceso_temporal, creado_en=f.creado_en, actualizado_en=f.actualizado_en,
+            nivel_clave=f.nivel_clave, inactividad_min=f.inactividad_min)
 
 
 # ------------------------------------------------------------ permisos/roles
@@ -147,7 +156,8 @@ class UsuariosDjango:
         return self._a_entidad(f) if f else None
 
     def por_identificador(self, valor_hmac: str) -> tuple[e.Usuario, e.Identificador] | None:
-        f = m.IdentificadorUsuario.objects.filter(valor_hmac=valor_hmac).select_related("usuario").first()
+        f = m.IdentificadorUsuario.objects.filter(valor_hmac=valor_hmac, retirado_en__isnull=True) \
+            .select_related("usuario").first()
         if f is None:
             return None
         return self._a_entidad(f.usuario), self._ident(f)
@@ -156,7 +166,17 @@ class UsuariosDjango:
         m.Usuario.objects.update_or_create(id=u.id, defaults=dict(
             organizacion_id=u.organizacion_id, rol_id=u.rol_id, estado=u.estado.value, alias=u.alias, idioma=u.idioma,
             creado_en=u.creado_en, actualizado_en=u.actualizado_en, creado_por_id=u.creado_por,
-            ultimo_acceso_en=u.ultimo_acceso_en))
+            ultimo_acceso_en=u.ultimo_acceso_en, provisional=u.provisional, vinculado_a_id=u.vinculado_a))
+
+    def asignaciones(self, usuario_id: str) -> list[e.UsuarioRol]:
+        return [e.UsuarioRol(f.id, f.usuario_id, f.rol_id, Alcance(f.alcance_tipo), f.desde, f.alcance_id, f.hasta,
+                             f.asignado_por_id, f.revocado_en)
+                for f in m.UsuarioRol.objects.filter(usuario_id=usuario_id).order_by("desde")]
+
+    def guardar_asignacion(self, a: e.UsuarioRol) -> None:
+        m.UsuarioRol.objects.update_or_create(id=a.id, defaults=dict(
+            usuario_id=a.usuario_id, rol_id=a.rol_id, alcance_tipo=a.alcance_tipo.value, alcance_id=a.alcance_id,
+            desde=a.desde, hasta=a.hasta, asignado_por_id=a.asignado_por, revocado_en=a.revocado_en))
 
     def persona(self, usuario_id: str) -> e.Persona | None:
         f = m.Persona.objects.filter(usuario_id=usuario_id).first()
@@ -181,23 +201,27 @@ class UsuariosDjango:
             pais=p.pais, actualizado_en=p.actualizado_en))
 
     def identificadores(self, usuario_id: str) -> list[e.Identificador]:
-        return [self._ident(f) for f in m.IdentificadorUsuario.objects.filter(usuario_id=usuario_id).order_by("tipo")]
+        return [self._ident(f) for f in m.IdentificadorUsuario.objects.filter(usuario_id=usuario_id, retirado_en__isnull=True)
+                .order_by("-principal", "tipo")]
 
     def existe_identificador(self, valor_hmac: str, excepto_usuario: str | None = None) -> bool:
-        consulta = m.IdentificadorUsuario.objects.filter(valor_hmac=valor_hmac)
+        consulta = m.IdentificadorUsuario.objects.filter(valor_hmac=valor_hmac, retirado_en__isnull=True)
         if excepto_usuario:
             consulta = consulta.exclude(usuario_id=excepto_usuario)
         return consulta.exists()
 
     def reemplazar_identificadores(self, usuario_id: str, identificadores: list[e.Identificador]) -> None:
+        """CV-05 (nada se borra): los identificadores que dejan de valer se retiran con fecha; los nuevos se crean."""
         from ..dominio.valores import DocumentNumber  # normalización para el índice ciego
-        m.IdentificadorUsuario.objects.filter(usuario_id=usuario_id).delete()
+        ahora = int(time.time() * 1000)
+        m.IdentificadorUsuario.objects.filter(usuario_id=usuario_id, retirado_en__isnull=True).update(retirado_en=ahora)
         m.IdentificadorUsuario.objects.bulk_create([
             m.IdentificadorUsuario(
                 id=i.id, usuario_id=usuario_id, tipo=i.tipo.value,
                 valor_cifrado=self.c.cifrar(i.valor, CTX_IDENT),
                 valor_hmac=self.c.indice(DocumentNumber(i.tipo, i.valor).normalizado),
-                es_login=i.es_login, verificado_en=i.verificado_en, creado_en=i.creado_en)
+                es_login=i.es_login, verificado_en=i.verificado_en, creado_en=i.creado_en,
+                emisor=i.emisor, principal=i.principal, retirado_en=None)
             for i in identificadores])
 
     def permisos_adicionales(self, usuario_id: str) -> list[e.UsuarioPermiso]:
@@ -232,13 +256,14 @@ class UsuariosDjango:
 
     def _ident(self, f: m.IdentificadorUsuario) -> e.Identificador:
         return e.Identificador(f.id, f.usuario_id, TipoIdentificador(f.tipo), self.c.descifrar(f.valor_cifrado, CTX_IDENT),
-                               f.es_login, f.creado_en, f.verificado_en)
+                               f.es_login, f.creado_en, f.verificado_en, f.emisor, f.principal, f.retirado_en)
 
     @staticmethod
     def _a_entidad(f: m.Usuario) -> e.Usuario:
         return e.Usuario(id=f.id, organizacion_id=f.organizacion_id, rol_id=f.rol_id, estado=EstadoUsuario(f.estado),
                          alias=f.alias, idioma=f.idioma, creado_en=f.creado_en, actualizado_en=f.actualizado_en,
-                         creado_por=f.creado_por_id, ultimo_acceso_en=f.ultimo_acceso_en)
+                         creado_por=f.creado_por_id, ultimo_acceso_en=f.ultimo_acceso_en,
+                         provisional=f.provisional, vinculado_a=f.vinculado_a_id)
 
 
 class CredencialesDjango:
@@ -280,7 +305,18 @@ class GruposDjango:
     def guardar(self, g: e.Grupo) -> None:
         m.Grupo.objects.update_or_create(id=g.id, defaults=dict(
             organizacion_id=g.organizacion_id, codigo=g.codigo, nombre=g.nombre, periodo=g.periodo,
-            politica_credencial_id=g.politica_credencial_id, activo=g.activo, creado_en=g.creado_en))
+            politica_credencial_id=g.politica_credencial_id, activo=g.activo, creado_en=g.creado_en,
+            nivel_clave=g.nivel_clave))
+
+    def ids_grupos_por_nivel(self, organizacion_id: str, nivel_clave: str) -> frozenset[str]:
+        return frozenset(m.Grupo.objects.filter(organizacion_id=organizacion_id, nivel_clave=nivel_clave, activo=True)
+                         .values_list("id", flat=True))
+
+    def nivel_de_usuario(self, usuario_id: str, ahora: int) -> str | None:
+        f = m.MiembroGrupo.objects.filter(
+            usuario_id=usuario_id, papel=PapelGrupo.ESTUDIANTE.value, hasta__isnull=True, grupo__activo=True,
+            grupo__nivel_clave__isnull=False).select_related("grupo").order_by("desde").first()
+        return f.grupo.nivel_clave if f else None
 
     def miembros(self, grupo_id: str, vigentes: bool = True) -> list[e.MiembroGrupo]:
         consulta = m.MiembroGrupo.objects.filter(grupo_id=grupo_id)
@@ -312,7 +348,8 @@ class GruposDjango:
 
     @staticmethod
     def _a_entidad(f: m.Grupo) -> e.Grupo:
-        return e.Grupo(f.id, f.organizacion_id, f.codigo, f.nombre, f.periodo, f.activo, f.creado_en, f.politica_credencial_id)
+        return e.Grupo(f.id, f.organizacion_id, f.codigo, f.nombre, f.periodo, f.activo, f.creado_en,
+                       f.politica_credencial_id, f.nivel_clave)
 
     @staticmethod
     def _miembro(f: m.MiembroGrupo) -> e.MiembroGrupo:
@@ -360,7 +397,15 @@ class SesionesDjango:
         m.Sesion.objects.update_or_create(id=s.id, defaults=dict(
             usuario_id=s.usuario_id, dispositivo_id=s.dispositivo_id, clase=s.clase.value, emitida_en=s.emitida_en,
             expira_en=s.expira_en, ultimo_uso_en=s.ultimo_uso_en, revocada_en=s.revocada_en,
-            motivo_revocacion=s.motivo_revocacion, evaluacion_ref=s.evaluacion_ref))
+            motivo_revocacion=s.motivo_revocacion, evaluacion_ref=s.evaluacion_ref, rol_id=s.rol_id))
+
+    def abiertas_de_usuario(self, usuario_id: str, ahora: int) -> list[e.Sesion]:
+        filas = m.Sesion.objects.filter(usuario_id=usuario_id, revocada_en__isnull=True, expira_en__gt=ahora)
+        return [self._a_entidad(f) for f in filas.order_by("-emitida_en")]
+
+    def abiertas_en_dispositivo(self, dispositivo_id: str, ahora: int) -> list[e.Sesion]:
+        filas = m.Sesion.objects.filter(dispositivo_id=dispositivo_id, revocada_en__isnull=True, expira_en__gt=ahora)
+        return [self._a_entidad(f) for f in filas.order_by("-emitida_en")]
 
     def listar(self, organizacion_id: str, usuario_id: str | None, solo_activas: bool, ahora: int,
                usuarios_permitidos: Iterable[str] | None = None) -> list[e.Sesion]:
@@ -382,7 +427,7 @@ class SesionesDjango:
     @staticmethod
     def _a_entidad(f: m.Sesion) -> e.Sesion:
         return e.Sesion(f.id, f.usuario_id, ClaseSesion(f.clase), f.emitida_en, f.expira_en, f.dispositivo_id,
-                        f.ultimo_uso_en, f.revocada_en, f.motivo_revocacion, f.evaluacion_ref)
+                        f.ultimo_uso_en, f.revocada_en, f.motivo_revocacion, f.evaluacion_ref, f.rol_id)
 
 
 class IntentosDjango:

@@ -24,6 +24,7 @@ from ..dominio.entidades import (
     Sesion,
     Usuario,
     UsuarioPermiso,
+    UsuarioRol,
 )
 from ..dominio.valores import Alcance, Menu, PapelGrupo, TipoIdentificador
 
@@ -35,7 +36,10 @@ class RepositorioOrganizaciones(Protocol):
 
 class RepositorioPoliticas(Protocol):
     def por_organizacion(self, organizacion_id: str) -> list[PoliticaCredencial]: ...
-    def por_perfil(self, organizacion_id: str, perfil: Menu) -> PoliticaCredencial | None: ...
+    def por_perfil(self, organizacion_id: str, perfil: Menu) -> PoliticaCredencial | None:
+        """La política general del perfil (sin nivel educativo)."""
+    def por_nivel(self, organizacion_id: str, perfil: Menu, nivel_clave: str) -> PoliticaCredencial | None:
+        """La excepción del perfil para un nivel educativo concreto (BR-024), si existe."""
     def por_id(self, politica_id: str) -> PoliticaCredencial | None: ...
     def guardar(self, politica: PoliticaCredencial) -> None: ...
 
@@ -65,6 +69,9 @@ class RepositorioUsuarios(Protocol):
     def reemplazar_identificadores(self, usuario_id: str, identificadores: list[Identificador]) -> None: ...
     def permisos_adicionales(self, usuario_id: str) -> list[UsuarioPermiso]: ...
     def guardar_permiso_adicional(self, permiso: UsuarioPermiso) -> None: ...
+    def asignaciones(self, usuario_id: str) -> list[UsuarioRol]:
+        """Roles asignados a la persona con su alcance y vigencia (m01_persona_rol)."""
+    def guardar_asignacion(self, asignacion: UsuarioRol) -> None: ...
     def listar(self, organizacion_id: str, alcance: Alcance, actor_id: str, grupos_docente: Iterable[str],
                nivel_maximo: int, grupo_id: str | None = None, rol_codigo: str | None = None,
                estado: str | None = None) -> list[Usuario]: ...
@@ -85,6 +92,10 @@ class RepositorioGrupos(Protocol):
     def membresias(self, usuario_id: str, vigentes: bool = True) -> list[MiembroGrupo]: ...
     def guardar_miembro(self, miembro: MiembroGrupo) -> None: ...
     def ids_grupos(self, usuario_id: str, papel: PapelGrupo | None, ahora: int) -> frozenset[str]: ...
+    def ids_grupos_por_nivel(self, organizacion_id: str, nivel_clave: str) -> frozenset[str]:
+        """Los grupos activos de un nivel educativo: lo que abre una asignación de rol con alcance LEVEL."""
+    def nivel_de_usuario(self, usuario_id: str, ahora: int) -> str | None:
+        """El nivel educativo del primer grupo vigente donde la persona es ESTUDIANTE (para BR-024)."""
     def politica_de_grupo(self, usuario_id: str, ahora: int) -> PoliticaCredencial | None:
         """La política del primer grupo vigente del usuario (como ESTUDIANTE) que tenga una propia."""
 
@@ -101,6 +112,10 @@ class RepositorioSesiones(Protocol):
     def guardar(self, sesion: Sesion) -> None: ...
     def listar(self, organizacion_id: str, usuario_id: str | None, solo_activas: bool, ahora: int,
                usuarios_permitidos: Iterable[str] | None = None) -> list[Sesion]: ...
+    def abiertas_de_usuario(self, usuario_id: str, ahora: int) -> list[Sesion]:
+        """Sesiones vigentes de la persona: para imponer la sesión única al abrir otra."""
+    def abiertas_en_dispositivo(self, dispositivo_id: str, ahora: int) -> list[Sesion]:
+        """Sesiones vigentes en la tableta: para imponer INV-011 (cero o una por dispositivo compartido)."""
     def revocar_de_usuario(self, usuario_id: str, motivo: str, ahora: int, excepto: str | None = None) -> int: ...
 
 

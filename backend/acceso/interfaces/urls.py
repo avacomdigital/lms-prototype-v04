@@ -17,10 +17,15 @@ urlpatterns = [
     path("sesiones/<str:pk>/", views.SesionView.as_view(), name="acceso-sesion"),
     # usuarios
     path("usuarios/", views.UsuariosView.as_view(), name="acceso-usuarios"),
+    path("usuarios/importar/", views.ImportarUsuariosView.as_view(), name="acceso-usuarios-importar"),
     path("usuarios/<str:pk>/", views.UsuarioView.as_view(), name="acceso-usuario"),
-    path("usuarios/<str:pk>/rol/", views.UsuarioRolView.as_view(), name="acceso-usuario-rol"),
-    path("usuarios/<str:pk>/permisos/", views.UsuarioPermisosView.as_view(), name="acceso-usuario-permisos"),
-    path("usuarios/<str:pk>/permisos/<str:permiso>/", views.UsuarioPermisoView.as_view(), name="acceso-usuario-permiso"),
+    path("usuarios/<str:pk>/vincular/", views.UsuarioVincularView.as_view(), name="acceso-usuario-vincular"),
+    path("usuarios/<str:pk>/roles/", views.UsuarioRolesView.as_view(), name="acceso-usuario-roles"),
+    path("usuarios/<str:pk>/roles/<str:asignacion_id>/", views.UsuarioRolView.as_view(), name="acceso-usuario-rol-asignacion"),
+    path("usuarios/<str:pk>/rol/", views.UsuarioRolesView.as_view(), name="acceso-usuario-rol"),
+    path("usuarios/<str:pk>/escaladas/", views.UsuarioEscaladasView.as_view(), name="acceso-usuario-escaladas"),
+    path("usuarios/<str:pk>/escaladas/<str:permiso>/", views.UsuarioEscaladaView.as_view(), name="acceso-usuario-escalada"),
+    path("usuarios/<str:pk>/sesiones/", views.UsuarioSesionesView.as_view(), name="acceso-usuario-sesiones"),
     path("usuarios/<str:pk>/credencial/restablecer/", views.RestablecerCredencialView.as_view(), name="acceso-restablecer"),
     path("usuarios/<str:pk>/desbloquear/", views.DesbloquearView.as_view(), name="acceso-desbloquear"),
     # acceso temporal a examen

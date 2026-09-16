@@ -65,9 +65,9 @@ class BaseAcceso(TestCase):
         self.tableta = r.json()
 
     # ------------------------------------------------------------- utilidades
-    def login(self, identificador: str, secreto: str, dispositivo: str | None = None):
+    def login(self, identificador: str, secreto: str, dispositivo: str | None = None, rol: str | None = None):
         return self.api.post("/api/acceso/sesiones/", {"identificador": identificador, "secreto": secreto,
-                                                        "dispositivo": dispositivo or ""}, format="json")
+                                                        "dispositivo": dispositivo or "", "rol": rol or ""}, format="json")
 
     def sesion(self, identificador: str, secreto: str, dispositivo: str | None = None) -> APIClient:
         r = self.login(identificador, secreto, dispositivo)

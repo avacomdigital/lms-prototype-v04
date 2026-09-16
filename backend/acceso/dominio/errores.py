@@ -64,6 +64,16 @@ class SesionRevocada(SesionInvalida):
     codigo = "sesion_revocada"
 
 
+class SesionInactiva(SesionInvalida):
+    """La sesión se cerró por inactividad (FUN-009)."""
+    codigo = "sesion_inactiva"
+
+
+class SesionCerradaEnOtroDispositivo(SesionInvalida):
+    """La sesión se cerró porque la persona entró desde otro dispositivo (sesión única, INV-011)."""
+    codigo = "sesion_cerrada_otro_dispositivo"
+
+
 class SinPermiso(ErrorAcceso):
     """No tiene permiso para esta operación."""
     codigo = "sin_permiso"

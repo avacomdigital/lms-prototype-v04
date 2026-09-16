@@ -30,10 +30,10 @@ def principal(usuario_id: str, rol: Rol, clase=ClaseSesion.NORMAL, debe_cambiar=
     return Principal(usuario_id, ORG, rol.id, rol.codigo, rol.menu_principal, rol.nivel, "ses", clase, debe_cambiar)
 
 
-def contexto(usuario_id: str, rol: Rol, docente_en=(), miembro_en=(), adicionales=(), **kw) -> ContextoActor:
+def contexto(usuario_id: str, rol: Rol, docente_en=(), miembro_en=(), adicionales=(), tope=Alcance.ORGANIZATION, **kw) -> ContextoActor:
     return ContextoActor(principal(usuario_id, rol, **kw),
                          PoliticaAutorizacion.concesiones_efectivas(rol, list(adicionales), 1_000),
-                         frozenset(docente_en), frozenset(docente_en) | frozenset(miembro_en))
+                         frozenset(docente_en), frozenset(docente_en) | frozenset(miembro_en), tope)
 
 
 def politica(tipo=TipoSecreto.PIN, longitud=6, **kw) -> PoliticaCredencial:
@@ -51,7 +51,6 @@ class AutorizacionTests(SimpleTestCase):
         self.pol = PoliticaAutorizacion()
         self.student, self.teacher, self.admin = rol_sistema("STUDENT"), rol_sistema("TEACHER"), rol_sistema("ADMIN")
         self.juan = ObjetivoUsuario("juan", ORG, 1)
-        self.grupo_8a = {"8A"}
 
     def test_estudiante_solo_se_ve_a_si_mismo(self):
         ctx = contexto("juan", self.student)
@@ -63,32 +62,54 @@ class AutorizacionTests(SimpleTestCase):
 
     def test_docente_alcanza_a_los_estudiantes_de_sus_grupos_y_no_a_otros(self):
         ctx = contexto("prof", self.teacher, docente_en={"8A"})
-        self.assertTrue(self.pol.decidir(ctx, "credential.reset", self.juan, frozenset({"8A"})).permitido)
-        d = self.pol.decidir(ctx, "credential.reset", self.juan, frozenset({"9B"}))
+        self.assertTrue(self.pol.decidir(ctx, "identity.password.reset", self.juan, frozenset({"8A"})).permitido)
+        d = self.pol.decidir(ctx, "identity.password.reset", self.juan, frozenset({"9B"}))
         self.assertFalse(d.permitido)
         self.assertEqual(d.alcance_requerido, Alcance.ORGANIZATION)
+
+    def test_fuera_de_alcance_es_acceso_denegado_nunca_inexistente(self):
+        # Regla del Documento Maestro: no se revela por omisión, pero tampoco se finge que no existe.
+        ctx = contexto("prof", self.teacher, docente_en={"8A"})
+        d = self.pol.decidir(ctx, "identity.password.reset", self.juan, frozenset({"9B"}))
+        with self.assertRaises(errores.SinPermiso):
+            d.exigir(ocultar_existencia=True)
 
     def test_docente_no_administra_a_otro_docente_aunque_comparta_grupo(self):
         ctx = contexto("prof", self.teacher, docente_en={"8A"})
         colega = ObjetivoUsuario("colega", ORG, 2)
-        self.assertFalse(self.pol.decidir(ctx, "credential.reset", colega, frozenset({"8A"})).permitido)
+        self.assertFalse(self.pol.decidir(ctx, "identity.password.reset", colega, frozenset({"8A"})).permitido)
 
     def test_admin_alcanza_la_organizacion_pero_no_a_alguien_de_mas_nivel(self):
         ctx = contexto("adm", self.admin)
-        self.assertTrue(self.pol.decidir(ctx, "credential.reset", ObjetivoUsuario("colega", ORG, 2)).permitido)
-        self.assertTrue(self.pol.decidir(ctx, "policy.manage", ObjetivoOrganizacion(ORG)).permitido)
+        self.assertTrue(self.pol.decidir(ctx, "identity.password.reset", ObjetivoUsuario("colega", ORG, 2)).permitido)
+        self.assertTrue(self.pol.decidir(ctx, "identity.policy.manage", ObjetivoOrganizacion(ORG)).permitido)
         coordinador = contexto("coord", Rol("c", ORG, "COORD", "Coordinador", Menu.TEACHER, 2, False, 0,
-                                            [RolPermiso("user.update", Alcance.ORGANIZATION)]))
-        self.assertFalse(self.pol.decidir(coordinador, "user.update", ObjetivoUsuario("adm", ORG, 3)).permitido)
+                                            [RolPermiso("identity.user.update", Alcance.ORGANIZATION)]))
+        self.assertFalse(self.pol.decidir(coordinador, "identity.user.update", ObjetivoUsuario("adm", ORG, 3)).permitido)
 
-    def test_otra_organizacion_se_oculta(self):
+    def test_otra_organizacion_se_deniega(self):
         ctx = contexto("adm", self.admin)
-        d = self.pol.decidir(ctx, "user.read", ObjetivoUsuario("x", "otra-org", 1))
+        d = self.pol.decidir(ctx, "identity.user.read", ObjetivoUsuario("x", "otra-org", 1))
         self.assertEqual(d.codigo, "fuera_de_organizacion")
-        with self.assertRaises(errores.NoEncontrado):
+        with self.assertRaises(errores.SinPermiso):
             d.exigir()
 
-    def test_permiso_adicional_amplia_el_alcance_mientras_esta_vigente(self):
+    def test_la_asignacion_del_rol_acota_el_alcance_del_rol(self):
+        # BR-021: un rol con permisos de organización asignado sobre un nivel llega sólo hasta ese nivel.
+        coordinador = Rol("c", ORG, "COORD", "Coordinador", Menu.TEACHER, 2, False, 0,
+                          [RolPermiso("identity.user.read", Alcance.ORGANIZATION)])
+        ctx = contexto("coord", coordinador, docente_en={"8A", "8B"}, tope=Alcance.LEVEL)  # 8A y 8B son de su nivel
+        self.assertIs(self.pol.alcance_concedido(ctx, "identity.user.read"), Alcance.LEVEL)
+        self.assertTrue(self.pol.decidir(ctx, "identity.user.read", self.juan, frozenset({"8B"})).permitido)
+        self.assertFalse(self.pol.decidir(ctx, "identity.user.read", ObjetivoUsuario("pedro", ORG, 1), frozenset({"11A"})).permitido)
+        self.assertFalse(self.pol.decidir(ctx, "identity.user.read", ObjetivoOrganizacion(ORG)).permitido)
+
+    def test_level_sin_asignacion_de_nivel_se_resuelve_como_sus_grupos(self):
+        rol = Rol("r", ORG, "R", "R", Menu.TEACHER, 2, False, 0, [RolPermiso("identity.user.read", Alcance.LEVEL)])
+        ctx = contexto("x", rol, docente_en={"8A"})
+        self.assertIs(self.pol.alcance_concedido(ctx, "identity.user.read"), Alcance.ASSIGNED_GROUPS)
+
+    def test_escalada_amplia_el_alcance_mientras_esta_vigente(self):
         extra = UsuarioPermiso("up", "prof", "audit.read", Alcance.ORGANIZATION, "adm", "coordinación", 0, vigente_hasta=5_000)
         ctx = contexto("prof", self.teacher, adicionales=[extra])
         self.assertTrue(self.pol.decidir(ctx, "audit.read", ObjetivoOrganizacion(ORG)).permitido)
@@ -99,22 +120,32 @@ class AutorizacionTests(SimpleTestCase):
     def test_sesion_temporal_solo_rinde_examen(self):
         ctx = contexto("juan", self.student, clase=ClaseSesion.TEMPORAL)
         self.assertTrue(self.pol.decidir(ctx, "student.exam.attempt", self.juan).permitido)
-        d = self.pol.decidir(ctx, "credential.change_own", self.juan)
+        d = self.pol.decidir(ctx, "identity.password.change_own", self.juan)
         self.assertEqual(d.codigo, "sesion_temporal_limitada")
         with self.assertRaises(errores.SesionTemporalLimitada):
             d.exigir()
 
     def test_credencial_provisional_solo_permite_cambiarla(self):
         ctx = contexto("prof", self.teacher, docente_en={"8A"}, debe_cambiar=True)
-        self.assertTrue(self.pol.decidir(ctx, "credential.change_own", ObjetivoUsuario("prof", ORG, 2)).permitido)
-        self.assertEqual(self.pol.decidir(ctx, "user.read", self.juan, frozenset({"8A"})).codigo, "debe_cambiar_credencial")
+        self.assertTrue(self.pol.decidir(ctx, "identity.password.change_own", ObjetivoUsuario("prof", ORG, 2)).permitido)
+        self.assertEqual(self.pol.decidir(ctx, "identity.user.read", self.juan, frozenset({"8A"})).codigo, "debe_cambiar_credencial")
 
     def test_grupo_como_objetivo_y_sin_objetivo(self):
         ctx = contexto("prof", self.teacher, docente_en={"8A"})
-        self.assertTrue(self.pol.decidir(ctx, "group.member.manage", ObjetivoGrupo("8A", ORG)).permitido)
-        self.assertFalse(self.pol.decidir(ctx, "group.member.manage", ObjetivoGrupo("9B", ORG)).permitido)
-        self.assertTrue(self.pol.decidir(ctx, "role.read", SinObjetivo()).permitido)
-        self.assertFalse(self.pol.decidir(contexto("juan", self.student), "role.read", SinObjetivo()).permitido)
+        self.assertTrue(self.pol.decidir(ctx, "identity.group.member.manage", ObjetivoGrupo("8A", ORG)).permitido)
+        self.assertFalse(self.pol.decidir(ctx, "identity.group.member.manage", ObjetivoGrupo("9B", ORG)).permitido)
+        self.assertTrue(self.pol.decidir(ctx, "identity.role.read", SinObjetivo()).permitido)
+        self.assertFalse(self.pol.decidir(contexto("juan", self.student), "identity.role.read", SinObjetivo()).permitido)
+
+    def test_los_cinco_roles_del_maestro(self):
+        self.assertEqual(set(plantillas.ROLES_SISTEMA), {"STUDENT", "TEACHER", "ADMIN", "REPORTS", "TECHNICIAN"})
+        reportes, tecnico = rol_sistema("REPORTS"), rol_sistema("TECHNICIAN")
+        # Reportes: sólo lectura, ninguna escritura académica ni de identidad.
+        self.assertFalse(any(p.permiso_codigo.endswith((".create", ".update", ".reset", ".assign")) for p in reportes.permisos))
+        self.assertTrue(self.pol.decidir(contexto("rep", reportes), "reports.student.view", self.juan).permitido)
+        # Técnico: sin datos personales.
+        self.assertFalse(self.pol.decidir(contexto("tec", tecnico), "identity.user.read", self.juan).permitido)
+        self.assertTrue(self.pol.decidir(contexto("tec", tecnico), "identity.device.manage", ObjetivoOrganizacion(ORG)).permitido)
 
     def test_alcance_otorgable_respeta_techo_y_alcance_del_actor(self):
         with self.assertRaises(errores.DatosInvalidos):
@@ -135,6 +166,14 @@ class FortalezaTests(SimpleTestCase):
         self.assertTrue(PoliticaFortaleza.validar("6913", politica()))
         self.assertTrue(PoliticaFortaleza.validar("69a302", politica()))
 
+    def test_avatar_para_preescolar(self):
+        avatar = politica(TipoSecreto.AVATAR, 4, nivel_clave="preescolar")
+        self.assertEqual(PoliticaFortaleza.validar("gato-azul", avatar), [])
+        self.assertTrue(PoliticaFortaleza.validar("Gato Azul!", avatar))
+        avatar.validar()
+        with self.assertRaises(ValueError):
+            politica(TipoSecreto.AVATAR, 4, perfil=Menu.TEACHER).validar()
+
     def test_contrasena_docente_exige_mayuscula_y_simbolo(self):
         docente = politica(TipoSecreto.PASSWORD, 8, exige_mayuscula=True, exige_simbolo=True, exige_digito=False)
         self.assertEqual(PoliticaFortaleza.validar("Docente.2026", docente), [])
@@ -143,6 +182,11 @@ class FortalezaTests(SimpleTestCase):
         with self.assertRaises(errores.SecretoDebil) as ctx:
             PoliticaFortaleza.exigir("docente", docente)
         self.assertEqual(len(ctx.exception.extra["reglas"]), 3)
+
+    def test_inactividad_coherente_con_la_sesion(self):
+        with self.assertRaises(ValueError):
+            politica(inactividad_min=300).validar()
+        politica(inactividad_min=20).validar()
 
 
 class BloqueoTests(SimpleTestCase):

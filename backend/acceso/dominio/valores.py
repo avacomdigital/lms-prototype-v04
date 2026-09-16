@@ -13,15 +13,20 @@ from enum import Enum
 
 
 class Alcance(str, Enum):
-    """Hasta dónde llega un permiso. Es una regla de negocio, no una tabla."""
+    """Hasta dónde llega un permiso. Es una regla de negocio, no una tabla.
+
+    Corresponde a los cuatro alcances del Documento Maestro (MOD-001):
+    propio → SELF · grupo → ASSIGNED_GROUPS · nivel educativo → LEVEL · instalación → ORGANIZATION.
+    """
 
     SELF = "SELF"
     ASSIGNED_GROUPS = "ASSIGNED_GROUPS"
+    LEVEL = "LEVEL"
     ORGANIZATION = "ORGANIZATION"
 
     @property
     def orden(self) -> int:
-        return {"SELF": 1, "ASSIGNED_GROUPS": 2, "ORGANIZATION": 3}[self.value]
+        return {"SELF": 1, "ASSIGNED_GROUPS": 2, "LEVEL": 3, "ORGANIZATION": 4}[self.value]
 
     def cubre(self, requerido: "Alcance") -> bool:
         return self.orden >= requerido.orden
@@ -31,25 +36,66 @@ class Alcance(str, Enum):
         try:
             return cls(str(texto or "").strip().upper())
         except ValueError:
-            raise ValueError(f"Alcance desconocido: {texto!r}. Use SELF, ASSIGNED_GROUPS u ORGANIZATION.")
+            raise ValueError(f"Alcance desconocido: {texto!r}. Use SELF, ASSIGNED_GROUPS, LEVEL u ORGANIZATION.")
+
+    @classmethod
+    def minimo(cls, a: "Alcance", b: "Alcance") -> "Alcance":
+        return a if a.orden <= b.orden else b
 
 
 class Menu(str, Enum):
-    STUDENT = "student"
-    TEACHER = "teacher"
-    ADMIN = "admin"
+    """El menú que abre el cliente. Uno por rol de sistema del Documento Maestro (los cinco roles)."""
+
+    STUDENT = "student"        # Alumno
+    TEACHER = "teacher"        # Profesor
+    ADMIN = "admin"            # Administrador
+    REPORTS = "reports"        # Reportes: sólo lectura
+    TECHNICIAN = "technician"  # Técnico AVACOM: sin datos personales
+
+
+class NivelEducativo(str, Enum):
+    """Los cinco niveles del Documento Maestro. La configuración de acceso puede variar por nivel (BR-024)."""
+
+    PREESCOLAR = "preescolar"
+    PRIMARIA = "primaria"
+    SECUNDARIA = "secundaria"
+    BACHILLERATO = "bachillerato"
+    PREUNIVERSITARIO = "preuniversitario"
 
 
 class TipoIdentificador(str, Enum):
-    DNI = "DNI"
-    CODIGO_ESTUDIANTIL = "CODIGO_ESTUDIANTIL"
+    """Identificadores externos (DEC-048): vinculan a la misma persona entre nodos."""
+
+    DNI = "DNI"                              # documento nacional (CURP, cédula, tarjeta de identidad)
+    CODIGO_ESTUDIANTIL = "CODIGO_ESTUDIANTIL"  # matrícula emitida por la institución
+    CLAVE_INSTALACION = "CLAVE_INSTALACION"    # la emite el nodo cuando la institución no da matrícula (DEC-049)
     EMAIL = "EMAIL"
     CUALQUIERA = "CUALQUIERA"  # sólo válido en la política
 
 
 class TipoSecreto(str, Enum):
+    """Credenciales del Documento Maestro: contraseña, clave corta (PIN) y avatar (código gráfico)."""
+
     PIN = "PIN"
     PASSWORD = "PASSWORD"
+    AVATAR = "AVATAR"
+
+
+class MotivoCierre(str, Enum):
+    """Por qué se cerró una sesión. Alineado con m01_sesion_usuario.motivo_cierre del Documento Maestro."""
+
+    PERSONA = "persona"                        # cerró sesión ella misma
+    OTRO_DISPOSITIVO = "otro_dispositivo"      # abrió en otro aparato: sesión única por persona
+    DISPOSITIVO_COMPARTIDO = "dispositivo_compartido"  # otra persona entró en esta tableta (INV-011)
+    INACTIVIDAD = "inactividad"                # FUN-009
+    RESTAURACION = "restauracion"              # el nodo se restauró desde un respaldo
+    PROFESOR = "profesor"
+    ADMINISTRADOR = "administrador"
+    CREDENCIAL_CAMBIADA = "credencial_cambiada"
+    CREDENCIAL_RESTABLECIDA = "credencial_restablecida"
+    ROL_CAMBIADO = "rol_cambiado"
+    ESTADO_CUENTA = "estado_cuenta"
+    DISPOSITIVO_BAJA = "dispositivo_baja"
 
 
 class EstadoUsuario(str, Enum):
@@ -248,6 +294,23 @@ class Pin:
         if len(v) % 2 == 0 and v[: len(v) // 2] == v[len(v) // 2:]:
             return True
         return v in {"123123", "112233", "121212", "696969", "159753", "147258"}
+
+
+@dataclass(frozen=True)
+class Avatar:
+    """Código gráfico para preescolar (BR-024): el niño toca un dibujo, la app envía su código.
+
+    Baja entropía, como un PIN: se guarda con Argon2id y lo protegen el bloqueo por
+    intentos y que sólo esté habilitado en los niveles que el administrador decida.
+    """
+
+    valor: str
+
+    def __post_init__(self):
+        v = str(self.valor or "").strip().lower()
+        if not re.fullmatch(r"[a-z0-9][a-z0-9\-]{2,31}", v):
+            raise ValueError("El avatar es un código de 3 a 32 caracteres: letras, números y guiones.")
+        object.__setattr__(self, "valor", v)
 
 
 @dataclass(frozen=True)
