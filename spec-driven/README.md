@@ -12,6 +12,11 @@ Documentación para el **nuevo prototipo**, en el que la administración del cur
 | [05 · Tareas](05-tareas.md) | Los nueve bloques, su grafo, la ruta crítica y los bloqueos | Vas a planificar el trabajo |
 | [06 · Contrato exigido a la biblioteca](06-contrato-biblioteca.md) | Lo que el otro producto tiene que publicar para que esto sea posible | Hablas con el equipo de AVACOM Biblioteca |
 | [07 · Comunicación OPS ↔ Student en la LAN](07-comunicacion-ops-student.md) | Backend y OPS en el equipo maestro, Student en otra máquina de la misma red: red, cortafuegos, Android en texto claro, pantalla «Tus cursos», sesión en vivo con Channels y la lista de comprobación de la prueba | Vas a probar Student desde una tableta o un portátil |
+| [08 · Instalador](08-instalador.md) | Decisiones del instalador de AVACOM OPS Master: servicio de Windows, Waitress, runtime Python embebido | Vas a distribuir el producto |
+| [01-acceso · 01 · Modelado de datos](01-acceso/01-modelado-datos.md) | Módulo de acceso y usuarios: tablas `m01_*` en 3FN, RBAC con alcance, credenciales configurables por colegio, Argon2id/AES-GCM/HMAC, JWT, recuperación en el aula y arquitectura hexagonal | Vas a tocar identidad, permisos o sesiones |
+| [01-acceso · 02 · Endpoints](01-acceso/02-Endpoints.md) | Contrato de `/api/acceso/`: login, `yo`, usuarios, restablecer, desbloquear, acceso temporal a examen, catálogos; códigos de error y trazabilidad con los casos de uso | Vas a consumir la API desde MAUI |
+
+Las presentaciones del módulo de acceso están en [`specs/presentaciones/acceso.html`](../specs/presentaciones/acceso.html) (diseño de datos) y [`specs/presentaciones/acceso-sugerencias.html`](../specs/presentaciones/acceso-sugerencias.html) (pantallas MAUI).
 
 El prompt normativo, con los bloques `/speckit.*` listos para ejecutar, está en [`docs/prompts/prompt-backend-spec-driven.md`](../prompts/prompt-backend-spec-driven.md).
 
