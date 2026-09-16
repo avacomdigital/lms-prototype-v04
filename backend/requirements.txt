@@ -1,2 +1,6 @@
 Django==5.2.3
 djangorestframework==3.16.1
+# Módulo de acceso (spec-driven/01-acceso)
+argon2-cffi==25.1.0
+cryptography==50.0.1
+PyJWT==2.14.0

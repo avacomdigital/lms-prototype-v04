@@ -18,3 +18,12 @@ tzdata==2026.3
 
 # Servidor WSGI de produccion para Windows (sustituye a manage.py runserver).
 waitress==3.0.2
+
+# Modulo de acceso (spec-driven/01-acceso): Argon2id, AES-256-GCM/HMAC y JWT.
+# Mismas versiones que backend/requirements.txt mas sus transitivas fijadas.
+argon2-cffi==25.1.0
+argon2-cffi-bindings==26.1.0
+cffi==2.1.1
+pycparser==3.0
+cryptography==50.0.1
+PyJWT==2.14.0
