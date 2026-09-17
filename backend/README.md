@@ -3,7 +3,9 @@
 Integra **AVACOM Biblioteca** (dueña de los cursos) con **AVACOM OPS Master** y
 **AVACOM Student** (clientes MAUI). Este backend **no administra cursos**: los
 lee en vivo de la biblioteca por loopback y guarda únicamente el **expediente
-del estudiante** (inscripción, aperturas del visor, progreso, intentos y notas).
+del estudiante** (inscripción, aperturas del visor, progreso, intentos y notas)
+y lo que ocurre en el **aula** (MOD-007: sesiones de clase, participantes, foco,
+distribuciones y resumen; tablas `m07_*`, ninguna de curso).
 
 ```
 Tableta (Student) ─┐
@@ -75,6 +77,17 @@ set AVACOM_CONTENIDO_ENLACE=%TEMP%\enlace-pruebas.json
 | `/api/inscripciones/` | GET, POST, DELETE lógico | Inscripción |
 | `/api/auditoria/` | GET | Sólo lectura |
 | `/api/courses/…` y demás rutas de administración | cualquier verbo | **409** `administracion_no_permitida` |
+| `/api/aula/cursos/[?fuente=biblioteca|ejemplo]` | GET | Cursos agrupados por **asignatura** (`classification.subject`) para el panel de navegación |
+| `/api/aula/cursos/{curso_ref}/[?rol=docente]` | GET | La **vista de aula** del curso: lecciones, objetos (`presentacion`, `lectura`, `laboratorio_web`, `actividad`, `examen`), bloques, medios y preguntas **sin claves**, con `componente` para MAUI |
+| `/api/aula/cursos/{curso_ref}/lecciones/{ref}/`, `objetos/{ref}/` | GET | Una lección o un objeto sueltos |
+| `/api/aula/cursos/{curso_ref}/medios/{media_ref}/[ruta]` | GET, HEAD | Bytes del medio (`Range`); con la fuente `ejemplo`, marcadores PNG/WAV/PDF/HTML/VTT |
+| `/api/aula/pruebas/curso/`, `/api/aula/pruebas/cursos/` | GET | **Endpoint de prueba**: el curso «Ciencias naturales» de `spec-driven/02-classroom-engine/example.json`, leído del disco en cada petición |
+| `/api/aula/sesiones/` | GET · POST | Listar sesiones de clase · **iniciar** una por cualquiera de las cuatro vías (`arbol`, `leccion`, `recurso`, `libre`) |
+| `/api/aula/sesiones/unirse/` | POST | La tableta entra con el **código de unión** (o se readmite con su `participante_id`) |
+| `/api/aula/sesiones/{id}/` · `estado/` | GET | Detalle para el profesor · estado para la tableta (foco, seguimiento, bloqueo, pendientes, avisos; sondeo cada 2 s) |
+| `/api/aula/sesiones/{id}/foco/`, `controles/`, `distribuciones/…`, `avisos/`, `codigo/rotar/` | POST | Proyectar, bloquear/seguir, lanzar recurso o actividad (+ `confirmar/`, `cerrar/`, `resultados/`), avisar, rotar el código |
+| `/api/aula/sesiones/{id}/participantes/{pid}/presencia/` · `admitir/` · `rechazar/` · `expulsar/` | POST | Presencia técnica declarada por la tableta · decisiones del profesor |
+| `/api/aula/sesiones/{id}/suspender/` · `reanudar/` · `cerrar/` | POST | Caída del nodo · reanudar con el mismo código · cerrar y consolidar el **resumen** |
 | `/api/acceso/configuracion/` | GET | Qué identificador y qué secreto usa cada perfil (para pintar el login). Sin sesión |
 | `/api/acceso/instalacion/` | POST | Primer arranque: organización, políticas y primer administrador. Sólo una vez |
 | `/api/acceso/dispositivos/` | POST · GET | Registro idempotente de la tableta · listado (con sesión) |
@@ -84,6 +97,21 @@ set AVACOM_CONTENIDO_ENLACE=%TEMP%\enlace-pruebas.json
 | `/api/acceso/usuarios/…` | GET, POST, PATCH | Usuarios, `importar/`, `vincular/` (admisión nominal), `roles/` (asignaciones con alcance y vigencia), `escaladas/`, `credencial/restablecer/`, `desbloquear/` |
 | `/api/acceso/autorizaciones-temporales/…` | POST, GET, DELETE · `canjear/` | Acceso temporal a examen (tableta autorizada o código de un solo uso) |
 | `/api/acceso/roles/`, `permisos/`, `politicas/{perfil}/[?nivel=]`, `grupos/…` | GET, POST, PUT, PATCH | Catálogos y configuración del colegio, políticas por nivel educativo |
+
+El módulo `aula/` implementa **MOD-007 · Classroom Engine** (sesión de clase, participantes, foco, controles,
+distribuciones, avisos, resumen y cola de salida `aula.*.v1`) con la misma arquitectura hexagonal. Está especificado en
+[`spec-driven/02-classroom-engine/01-modelo-de-datos.md`](../spec-driven/02-classroom-engine/01-modelo-de-datos.md) (modelo `m07_*`
+y contrato de `/api/aula/`) y [`02-sugerencias-frontend.md`](../spec-driven/02-classroom-engine/02-sugerencias-frontend.md) (componente MAUI).
+No guarda ningún curso: lo lee en vivo de la biblioteca o del manifiesto de ejemplo y sólo escribe referencias.
+
+Para probar el consumo del curso sin la biblioteca:
+
+```powershell
+.venv\Scripts\python manage.py runserver 0.0.0.0:8000
+# en otra consola
+curl http://127.0.0.1:8000/api/aula/pruebas/curso/?rol=docente
+curl -o lamina.png http://127.0.0.1:8000/api/aula/cursos/avacom.co.lower-secondary.6.science.states-of-matter/medios/img-particles/
+```
 
 El módulo de acceso implementa **MOD-001 · Identity & Access** del Documento Maestro de AVACOM LMS. Está
 especificado en [`spec-driven/01-acceso/`](../spec-driven/01-acceso/01-modelado-datos.md) (modelo de datos),
@@ -130,6 +158,8 @@ error, **404/403** referencia inexistente o desactivada por la escuela.
 | `AVACOM_LMS_CLAVE_INDICE` | Clave HMAC-SHA-256 del índice ciego (búsqueda de DNI/código/correo) |
 | `AVACOM_LMS_CLAVE_TOKENS` | Clave HS256 de los JWT |
 | `AVACOM_LMS_EXIGIR_SESION` | `0` por defecto. Con `1`, expediente y biblioteca exigen sesión (Q-34) |
+| `AVACOM_AULA_FUENTE_CURSOS` | Fuente de cursos por defecto de `/api/aula/`: `biblioteca` (por defecto) o `ejemplo` |
+| `AVACOM_AULA_CURSO_EJEMPLO` | Ruta del manifiesto de ejemplo (por defecto `spec-driven/02-classroom-engine/example.json`) |
 
 Si faltan las tres claves, el prototipo las deriva de `SECRET_KEY` con HKDF y `/health/` responde
 `"acceso": {"claves_derivadas": true}`. En una instalación distribuida deben venir en `backend.env`.

@@ -138,9 +138,12 @@ def catalogo_por_defecto() -> dict:
 
 class HostBibliotecaPruebas:
     def __init__(self, ruta_enlace: str, catalogo: dict | None = None, capacidades: list[str] | None = None,
-                 contrato: int = CONTRATO):
+                 contrato: int = CONTRATO, manifiestos: dict[str, dict] | None = None):
         self.ruta_enlace = ruta_enlace
         self.catalogo = catalogo or catalogo_por_defecto()
+        # Cursos publicados con el manifiesto de curso 1.0 (lessons/objects/media), como los
+        # que la biblioteca servirá en GET /v1/curso/{ref} cuando termine su esquema nuevo.
+        self.manifiestos = dict(manifiestos or {})
         self.capacidades = list(capacidades) if capacidades is not None else ["curso", "medio", "leccion", "evaluacion", "comprobar", "voz"]
         self.contrato = contrato
         self.ficha = secrets.token_hex(32)
@@ -189,6 +192,19 @@ class HostBibliotecaPruebas:
 
         base = "|".join(sorted(c["curso_ref"] for c in self.catalogo["cursos"]))
         return hashlib.sha256(base.encode()).hexdigest()[:16]
+
+    @staticmethod
+    def _ficha(manifiesto: dict) -> dict:
+        """La ficha del contrato 1 derivada de un manifiesto 1.0, para la lista de cursos."""
+        c = manifiesto.get("classification") or {}
+        lecciones = manifiesto.get("lessons") or []
+        return {
+            "curso_ref": manifiesto.get("id"), "titulo": manifiesto.get("title"), "version_vigente": manifiesto.get("version"),
+            "pais": c.get("country"), "nivel": (c.get("level") or {}).get("name"), "grado": (c.get("grade") or {}).get("code"),
+            "asignatura": (c.get("subject") or {}).get("name"), "idioma": manifiesto.get("language"),
+            "lecciones": len(lecciones), "elementos": sum(len(l.get("objects") or []) for l in lecciones),
+            "actualizado_en": 1757000000000, "esquema": manifiesto.get("schemaVersion"),
+        }
 
     def _elemento(self, ref: str) -> dict | None:
         for curso_ref, secciones in self.catalogo["secciones"].items():
@@ -274,9 +290,12 @@ class HostBibliotecaPruebas:
                         "capacidades": host.capacidades,
                     })
                 if camino == "/v1/cursos" and "curso" in host.capacidades:
-                    return self._json(200, {"huella_catalogo": host.huella(), "cursos": host.catalogo["cursos"]})
+                    return self._json(200, {"huella_catalogo": host.huella(),
+                                            "cursos": host.catalogo["cursos"] + [host._ficha(m) for m in host.manifiestos.values()]})
                 if len(partes) == 3 and partes[1] == "curso" and "curso" in host.capacidades:
                     ref = partes[2]
+                    if ref in host.manifiestos:
+                        return self._json(200, host.manifiestos[ref])
                     curso = next((c for c in host.catalogo["cursos"] if c["curso_ref"] == ref), None)
                     if not curso:
                         return self._json(404, {"error": "no hay ningun curso con esa referencia"})

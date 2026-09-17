@@ -1,0 +1,1479 @@
+{
+  "schemaVersion": "1.0",
+  "id": "avacom.co.lower-secondary.6.science.states-of-matter",
+  "version": "1.0.0",
+  "title": "Estados de la materia y sus cambios",
+  "subtitle": "Sólido, líquido, gas y lo que pasa al calentar o enfriar",
+  "description": "Curso de ciencias naturales para sexto grado. El alumno describe los estados de la materia con el modelo de partículas, reconoce los cambios de estado y explica el papel de la temperatura con ejemplos de su entorno.",
+  "language": "es-CO",
+  "translationGroupId": "avacom.lower-secondary.6.science.states-of-matter",
+  "classification": {
+    "country": "CO",
+    "level": {
+      "code": "lower_secondary",
+      "name": "Básica secundaria",
+      "order": 2
+    },
+    "grade": {
+      "code": "6",
+      "name": "Sexto",
+      "order": 6
+    },
+    "subject": {
+      "code": "science",
+      "name": "Ciencias naturales"
+    },
+    "topic": {
+      "code": "states-of-matter",
+      "name": "Estados de la materia",
+      "order": 2
+    }
+  },
+  "curriculumRefs": [
+    {
+      "framework": "DBA",
+      "code": "CN-6-EJEMPLO",
+      "description": "Código ilustrativo. El real sale del catálogo curricular oficial cargado para Colombia."
+    }
+  ],
+  "keywords": [
+    "materia",
+    "sólido",
+    "líquido",
+    "gas",
+    "partículas",
+    "fusión",
+    "evaporación",
+    "condensación",
+    "solidificación",
+    "temperatura"
+  ],
+  "estimatedDurationMin": 180,
+  "coverMediaId": "img-cover-matter",
+  "credits": {
+    "publisher": "AVACOM",
+    "authors": [
+      "Equipo de contenido AVACOM"
+    ],
+    "reviewers": [
+      "Revisión pedagógica AVACOM"
+    ]
+  },
+  "modes": [
+    "simple",
+    "class",
+    "exam",
+    "review",
+    "free_learning"
+  ],
+  "teacherNotes": {
+    "summary": "Curso de cuatro sesiones. Lección 1: los tres estados y el modelo de partículas. Lección 2: cambios de estado y temperatura. Lección 3: evaluación.",
+    "tips": [
+      "Parta de lo que los alumnos ven en casa: hielo que se derrite, olla que hierve, vidrio que se empaña.",
+      "Insista en que la materia no desaparece al evaporarse: cambia de estado."
+    ],
+    "materials": [
+      "Cubos de hielo",
+      "Vaso transparente",
+      "Termómetro de cocina, si hay"
+    ]
+  },
+  "media": [
+    {
+      "id": "img-cover-matter",
+      "kind": "image",
+      "path": "media/img/portada-estados.webp",
+      "mimeType": "image/webp",
+      "title": "Portada del curso",
+      "altText": "Un cubo de hielo derritiéndose sobre un plato junto a una taza con vapor.",
+      "width": 1280,
+      "height": 720,
+      "license": {
+        "type": "avacom"
+      }
+    },
+    {
+      "id": "img-particles",
+      "kind": "image",
+      "path": "media/img/modelo-particulas.png",
+      "mimeType": "image/png",
+      "title": "Modelo de partículas",
+      "altText": "Tres recipientes. En el primero las partículas están muy juntas y ordenadas; en el segundo están juntas pero desordenadas; en el tercero están separadas y dispersas.",
+      "width": 1280,
+      "height": 720,
+      "license": {
+        "type": "avacom"
+      }
+    },
+    {
+      "id": "img-ice-water-steam",
+      "kind": "image",
+      "path": "media/img/hielo-agua-vapor.png",
+      "mimeType": "image/png",
+      "title": "El agua en tres estados",
+      "altText": "De izquierda a derecha: cubos de hielo, un vaso con agua y una olla con vapor saliendo.",
+      "width": 1280,
+      "height": 720,
+      "license": {
+        "type": "avacom"
+      }
+    },
+    {
+      "id": "vid-changes",
+      "kind": "video",
+      "path": "media/video/cambios-de-estado.mp4",
+      "mimeType": "video/mp4",
+      "title": "Cambios de estado del agua",
+      "captionsPath": "media/video/cambios-de-estado.es.vtt",
+      "transcriptPath": "media/video/cambios-de-estado.es.txt",
+      "durationSec": 150.0,
+      "width": 1280,
+      "height": 720,
+      "license": {
+        "type": "avacom"
+      }
+    },
+    {
+      "id": "aud-summary",
+      "kind": "audio",
+      "path": "media/audio/resumen-estados.mp3",
+      "mimeType": "audio/mpeg",
+      "title": "Resumen en voz alta: los tres estados",
+      "transcriptPath": "media/audio/resumen-estados.txt",
+      "durationSec": 25.5,
+      "license": {
+        "type": "avacom"
+      }
+    },
+    {
+      "id": "pdf-lab-guide",
+      "kind": "pdf",
+      "path": "media/pdf/guia-laboratorio-hielo.pdf",
+      "mimeType": "application/pdf",
+      "title": "Guía de laboratorio: observar el hielo al calentarse",
+      "pageCount": 3,
+      "license": {
+        "type": "avacom"
+      }
+    },
+    {
+      "id": "sim-phet-states",
+      "kind": "simulation",
+      "path": "sims/phet-states-of-matter-basics",
+      "entry": "states-of-matter-basics_es.html",
+      "mimeType": "text/html",
+      "title": "Estados de la materia: básico (PhET)",
+      "simulation": {
+        "provider": "phet",
+        "technology": "html5",
+        "orientation": "landscape",
+        "shims": [
+          "block_network"
+        ],
+        "supportsTargets": [
+          "screen",
+          "tablet"
+        ]
+      },
+      "license": {
+        "type": "cc-by-4.0",
+        "attribution": "Simulation by PhET Interactive Simulations, University of Colorado Boulder, licensed under CC BY 4.0 (https://phet.colorado.edu).",
+        "sourceUrl": "https://phet.colorado.edu/es/simulations/states-of-matter-basics",
+        "publishedDate": "2024-09-01",
+        "obtainedDate": "2026-03-20"
+      }
+    },
+    {
+      "id": "sim-heating-curve",
+      "kind": "simulation",
+      "path": "sims/curva-calentamiento",
+      "entry": "index.html",
+      "mimeType": "text/html",
+      "title": "Curva de calentamiento del agua",
+      "simulation": {
+        "provider": "avacom",
+        "technology": "html5_canvas",
+        "designWidth": 1280,
+        "designHeight": 720,
+        "orientation": "landscape",
+        "shims": [
+          "scale_to_fit",
+          "block_network"
+        ],
+        "supportsTargets": [
+          "screen",
+          "tablet"
+        ]
+      },
+      "license": {
+        "type": "avacom"
+      }
+    }
+  ],
+  "lessons": [
+    {
+      "id": "l1-three-states",
+      "title": "Los tres estados de la materia",
+      "summary": "Sólido, líquido y gas explicados con el modelo de partículas.",
+      "objectives": [
+        "Describir sólidos, líquidos y gases por su forma y su volumen.",
+        "Explicar cada estado con el modelo de partículas.",
+        "Dar ejemplos de cada estado en el entorno cercano."
+      ],
+      "estimatedDurationMin": 90,
+      "modes": [
+        "simple",
+        "class",
+        "review",
+        "free_learning"
+      ],
+      "teacherNotes": {
+        "summary": "Dos sesiones. Sesión 1: cátedra y explicación. Sesión 2: laboratorio PhET y actividad.",
+        "timing": "Cátedra 20 min, explicación 10 min, laboratorio 25 min, actividad 25 min.",
+        "commonMistakes": [
+          "Pensar que los gases no tienen masa.",
+          "Creer que las partículas de un sólido están quietas: vibran en su lugar."
+        ],
+        "differentiation": "Para quien avanza rápido: pida explicar por qué un globo se infla al meterlo en agua caliente."
+      },
+      "topics": [
+        {
+          "id": "t-states",
+          "title": "Estados de la materia",
+          "subtopics": [
+            {
+              "id": "st-solid",
+              "title": "Sólido"
+            },
+            {
+              "id": "st-liquid",
+              "title": "Líquido"
+            },
+            {
+              "id": "st-gas",
+              "title": "Gas"
+            }
+          ]
+        },
+        {
+          "id": "t-particle-model",
+          "title": "Modelo de partículas"
+        }
+      ],
+      "objects": [
+        {
+          "id": "l1-lecture",
+          "type": "lecture",
+          "title": "Todo lo que nos rodea es materia",
+          "modes": [
+            "class",
+            "review",
+            "free_learning"
+          ],
+          "topicRef": "t-states",
+          "estimatedDurationSec": 1200,
+          "teacherNotes": {
+            "tips": [
+              "Pida a tres alumnos que nombren un sólido, un líquido y un gas del salón antes de pasar a la segunda lámina."
+            ]
+          },
+          "slides": [
+            {
+              "id": "l1-lecture-s1",
+              "title": "Qué es la materia",
+              "estimatedSec": 240,
+              "blocks": [
+                {
+                  "type": "heading",
+                  "text": "Qué es la materia",
+                  "level": 1
+                },
+                {
+                  "type": "text",
+                  "text": "**Materia** es todo lo que tiene masa y ocupa un lugar en el espacio: el pupitre, el agua de tu botella y el aire que respiras.",
+                  "style": "definition"
+                }
+              ]
+            },
+            {
+              "id": "l1-lecture-s2",
+              "title": "Tres estados, tres formas de ordenarse",
+              "estimatedSec": 420,
+              "teacherNotes": {
+                "tips": [
+                  "Señale cada recipiente y pregunte qué tan libres se mueven las partículas."
+                ]
+              },
+              "blocks": [
+                {
+                  "type": "image",
+                  "mediaId": "img-particles",
+                  "caption": "Las mismas partículas, ordenadas de tres maneras."
+                },
+                {
+                  "type": "list",
+                  "ordered": false,
+                  "items": [
+                    "**Sólido:** forma y volumen propios. Partículas muy juntas que vibran en su lugar.",
+                    "**Líquido:** volumen propio, toma la forma del recipiente. Partículas juntas que se deslizan.",
+                    "**Gas:** sin forma ni volumen propios, ocupa todo el recipiente. Partículas separadas que se mueven rápido."
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "l1-lecture-s3",
+              "title": "Míralo en video",
+              "estimatedSec": 60,
+              "blocks": [
+                {
+                  "type": "video",
+                  "mediaId": "vid-changes",
+                  "caption": "Primer minuto: el agua en sus tres estados.",
+                  "startSec": 0,
+                  "endSec": 60,
+                  "autoplay": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "l1-explanation",
+          "type": "explanation",
+          "title": "Escucha y repasa",
+          "modes": [
+            "simple",
+            "class",
+            "review",
+            "free_learning"
+          ],
+          "topicRef": "t-particle-model",
+          "estimatedDurationSec": 600,
+          "teacherNotes": {
+            "tips": [
+              "Entregue la guía de laboratorio impresa si las tabletas son de 8 pulgadas."
+            ]
+          },
+          "pages": [
+            {
+              "id": "l1-explanation-p1",
+              "title": "Resumen",
+              "blocks": [
+                {
+                  "type": "audio",
+                  "mediaId": "aud-summary",
+                  "caption": "Escucha el resumen de los tres estados."
+                },
+                {
+                  "type": "text",
+                  "text": "Entre más energía tienen las partículas, más se mueven y más se separan.",
+                  "style": "highlight"
+                }
+              ]
+            },
+            {
+              "id": "l1-explanation-p2",
+              "title": "Guía de laboratorio",
+              "blocks": [
+                {
+                  "type": "text",
+                  "text": "Lee la guía antes de abrir el laboratorio. Anota tus predicciones en el cuaderno."
+                },
+                {
+                  "type": "pdf",
+                  "mediaId": "pdf-lab-guide",
+                  "fromPage": 1,
+                  "toPage": 3,
+                  "caption": "Guía completa, 3 páginas."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "l1-lab-phet",
+          "type": "simulation_lab",
+          "title": "Laboratorio: partículas en movimiento",
+          "modes": [
+            "simple",
+            "class",
+            "review",
+            "free_learning"
+          ],
+          "topicRef": "t-particle-model",
+          "estimatedDurationSec": 1500,
+          "teacherNotes": {
+            "tips": [
+              "Pida que cambien la temperatura de mínima a máxima y describan qué pasa con las partículas."
+            ],
+            "commonMistakes": [
+              "Confundir que las partículas crecen con que se separan."
+            ]
+          },
+          "mediaId": "sim-phet-states",
+          "learningGoal": "Relacionar la temperatura con el movimiento y la separación de las partículas en cada estado.",
+          "instructions": "Abre la pantalla **Estados**. Elige el agua y cambia entre sólido, líquido y gas.",
+          "steps": [
+            "Elige agua y el estado sólido. Observa cómo se mueven las partículas.",
+            "Pasa a líquido y luego a gas.",
+            "Sube y baja la temperatura con el control y anota lo que ves."
+          ],
+          "guidingQuestions": [
+            "¿En qué estado se mueven más rápido las partículas?",
+            "¿Qué pasa con la distancia entre partículas cuando sube la temperatura?"
+          ]
+        },
+        {
+          "id": "l1-activity",
+          "type": "activity",
+          "title": "Practica: los tres estados",
+          "modes": [
+            "class",
+            "review",
+            "free_learning"
+          ],
+          "topicRef": "t-states",
+          "estimatedDurationSec": 1500,
+          "teacherNotes": {
+            "tips": [
+              "Revise en el portal las respuestas abiertas mientras los alumnos terminan."
+            ]
+          },
+          "instructions": "Responde cada pregunta. Si fallas, lee la pista y vuelve a intentarlo.",
+          "settings": {
+            "feedback": "immediate",
+            "attemptsAllowed": 2,
+            "shuffleQuestions": false,
+            "shuffleOptions": true
+          },
+          "questions": [
+            {
+              "id": "l1-act-q1",
+              "type": "multiple_choice",
+              "prompt": "¿Cuál de estos es un gas a temperatura ambiente?",
+              "topicRef": "st-gas",
+              "difficulty": 1,
+              "estimatedSec": 30,
+              "points": 1,
+              "cognitiveLevel": "remember",
+              "allowMultiple": false,
+              "options": [
+                {
+                  "id": "a",
+                  "text": "El aire",
+                  "isCorrect": true
+                },
+                {
+                  "id": "b",
+                  "text": "La leche",
+                  "isCorrect": false,
+                  "feedback": "La leche toma la forma del vaso: es un líquido."
+                },
+                {
+                  "id": "c",
+                  "text": "Una piedra",
+                  "isCorrect": false,
+                  "feedback": "La piedra tiene forma propia: es un sólido."
+                }
+              ],
+              "feedback": {
+                "correct": "Correcto: el aire es una mezcla de gases.",
+                "incorrect": "Busca lo que ocupa todo el espacio disponible."
+              }
+            },
+            {
+              "id": "l1-act-q2",
+              "type": "true_false",
+              "prompt": "Las partículas de un sólido están completamente quietas.",
+              "topicRef": "st-solid",
+              "difficulty": 2,
+              "estimatedSec": 25,
+              "points": 1,
+              "answer": false,
+              "feedback": {
+                "correct": "Exacto: vibran en su lugar.",
+                "incorrect": "Revisa el laboratorio: en el sólido las partículas vibran."
+              }
+            },
+            {
+              "id": "l1-act-q3",
+              "type": "fill_blanks",
+              "prompt": "Completa.",
+              "topicRef": "st-liquid",
+              "difficulty": 2,
+              "estimatedSec": 40,
+              "points": 2,
+              "partialCredit": true,
+              "template": "Un líquido tiene volumen {{b1}} y toma la {{b2}} del recipiente.",
+              "blanks": [
+                {
+                  "id": "b1",
+                  "inputMode": "select",
+                  "choices": [
+                    "propio",
+                    "variable"
+                  ],
+                  "acceptedAnswers": [
+                    "propio"
+                  ],
+                  "wrongAnswers": [
+                    {
+                      "value": "variable",
+                      "feedback": "Un litro de agua sigue siendo un litro en cualquier recipiente."
+                    }
+                  ]
+                },
+                {
+                  "id": "b2",
+                  "inputMode": "select",
+                  "choices": [
+                    "forma",
+                    "masa"
+                  ],
+                  "acceptedAnswers": [
+                    "forma"
+                  ],
+                  "wrongAnswers": [
+                    {
+                      "value": "masa",
+                      "feedback": "La masa no cambia al cambiar de recipiente."
+                    }
+                  ]
+                }
+              ],
+              "feedback": {
+                "correct": "Muy bien.",
+                "incorrect": "Piensa en el agua pasando de un vaso a una botella."
+              }
+            },
+            {
+              "id": "l1-act-q4",
+              "type": "matching",
+              "prompt": "Relaciona cada estado con cómo están sus partículas.",
+              "topicRef": "t-particle-model",
+              "difficulty": 2,
+              "estimatedSec": 60,
+              "points": 3,
+              "partialCredit": true,
+              "left": [
+                {
+                  "id": "solid",
+                  "text": "Sólido"
+                },
+                {
+                  "id": "liquid",
+                  "text": "Líquido"
+                },
+                {
+                  "id": "gas",
+                  "text": "Gas"
+                }
+              ],
+              "right": [
+                {
+                  "id": "fixed",
+                  "text": "Muy juntas, vibran en su lugar"
+                },
+                {
+                  "id": "slide",
+                  "text": "Juntas, se deslizan unas sobre otras"
+                },
+                {
+                  "id": "spread",
+                  "text": "Separadas, se mueven en todas direcciones"
+                },
+                {
+                  "id": "none",
+                  "text": "No hay partículas"
+                }
+              ],
+              "pairs": [
+                {
+                  "leftId": "solid",
+                  "rightId": "fixed"
+                },
+                {
+                  "leftId": "liquid",
+                  "rightId": "slide"
+                },
+                {
+                  "leftId": "gas",
+                  "rightId": "spread"
+                }
+              ],
+              "wrongPairs": [
+                {
+                  "leftId": "gas",
+                  "rightId": "none",
+                  "feedback": "Los gases sí tienen partículas, solo que muy separadas."
+                }
+              ],
+              "feedback": {
+                "correct": "Relacionaste todo bien.",
+                "incorrect": "Recuerda los tres recipientes de la cátedra."
+              }
+            },
+            {
+              "id": "l1-act-q5",
+              "type": "ordering",
+              "prompt": "Ordena de partículas más juntas a más separadas.",
+              "topicRef": "t-particle-model",
+              "difficulty": 2,
+              "estimatedSec": 40,
+              "points": 2,
+              "items": [
+                {
+                  "id": "o-gas",
+                  "text": "Gas"
+                },
+                {
+                  "id": "o-solid",
+                  "text": "Sólido"
+                },
+                {
+                  "id": "o-liquid",
+                  "text": "Líquido"
+                }
+              ],
+              "correctOrder": [
+                "o-solid",
+                "o-liquid",
+                "o-gas"
+              ],
+              "wrongOrders": [
+                {
+                  "order": [
+                    "o-liquid",
+                    "o-solid",
+                    "o-gas"
+                  ],
+                  "feedback": "En el sólido las partículas están más juntas que en el líquido."
+                }
+              ],
+              "feedback": {
+                "correct": "Correcto.",
+                "incorrect": "Piensa en cuál conserva su forma."
+              }
+            },
+            {
+              "id": "l1-act-q6",
+              "type": "open",
+              "prompt": "Explica con el modelo de partículas por qué el olor de un perfume llega a todo el salón.",
+              "topicRef": "st-gas",
+              "difficulty": 4,
+              "estimatedSec": 150,
+              "points": 4,
+              "cognitiveLevel": "apply",
+              "responseFormat": "text",
+              "maxLength": 600,
+              "modelAnswer": "El perfume se evapora y pasa a gas. Las partículas de un gas se mueven rápido y en todas direcciones, se separan y se reparten por todo el espacio del salón.",
+              "rubric": [
+                {
+                  "id": "r1",
+                  "criterion": "Menciona que el perfume pasa a estado gaseoso.",
+                  "points": 1
+                },
+                {
+                  "id": "r2",
+                  "criterion": "Explica que las partículas del gas se mueven y se separan.",
+                  "points": 2
+                },
+                {
+                  "id": "r3",
+                  "criterion": "Relaciona ese movimiento con que el olor ocupe todo el salón.",
+                  "points": 1
+                }
+              ],
+              "incorrectExamples": [
+                {
+                  "text": "Porque el aire lo empuja con el viento.",
+                  "reason": "No usa el modelo de partículas ni el cambio de estado."
+                }
+              ],
+              "feedback": {
+                "correct": "Tu profesor revisará tu explicación.",
+                "incorrect": "Tu profesor revisará tu explicación."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "l2-changes-of-state",
+      "title": "Cambios de estado",
+      "summary": "Fusión, evaporación, condensación y solidificación, y el papel de la temperatura.",
+      "objectives": [
+        "Nombrar los cambios de estado y el sentido en que ocurren.",
+        "Relacionar ganar o perder calor con cada cambio.",
+        "Explicar por qué el punto de ebullición cambia con la altura."
+      ],
+      "estimatedDurationMin": 45,
+      "modes": [
+        "class",
+        "review",
+        "free_learning"
+      ],
+      "teacherNotes": {
+        "summary": "Una sesión. Cátedra breve, laboratorio de curva de calentamiento y actividad corta.",
+        "tips": [
+          "Si hay hielo y termómetro, haga la demostración real antes del laboratorio."
+        ],
+        "commonMistakes": [
+          "Confundir condensación con evaporación."
+        ]
+      },
+      "topics": [
+        {
+          "id": "t-changes",
+          "title": "Cambios de estado",
+          "subtopics": [
+            {
+              "id": "st-melting",
+              "title": "Fusión"
+            },
+            {
+              "id": "st-evaporation",
+              "title": "Evaporación"
+            },
+            {
+              "id": "st-condensation",
+              "title": "Condensación"
+            },
+            {
+              "id": "st-solidification",
+              "title": "Solidificación"
+            }
+          ]
+        },
+        {
+          "id": "t-temperature",
+          "title": "Temperatura y cambios de estado"
+        }
+      ],
+      "objects": [
+        {
+          "id": "l2-lecture",
+          "type": "lecture",
+          "title": "Cuando la materia cambia de estado",
+          "modes": [
+            "class",
+            "review",
+            "free_learning"
+          ],
+          "topicRef": "t-changes",
+          "estimatedDurationSec": 900,
+          "teacherNotes": {
+            "tips": [
+              "Dibuje en la pantalla las flechas de cada cambio mientras las nombra."
+            ]
+          },
+          "slides": [
+            {
+              "id": "l2-lecture-s1",
+              "title": "El agua cambia de estado",
+              "estimatedSec": 300,
+              "blocks": [
+                {
+                  "type": "image",
+                  "mediaId": "img-ice-water-steam",
+                  "caption": "Hielo, agua líquida y vapor."
+                },
+                {
+                  "type": "list",
+                  "ordered": false,
+                  "items": [
+                    "**Fusión:** de sólido a líquido al ganar calor.",
+                    "**Evaporación:** de líquido a gas al ganar calor.",
+                    "**Condensación:** de gas a líquido al perder calor.",
+                    "**Solidificación:** de líquido a sólido al perder calor."
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "l2-lecture-s2",
+              "title": "La altura importa",
+              "estimatedSec": 300,
+              "teacherNotes": {
+                "tips": [
+                  "Si el colegio está a gran altura, pregunte si han notado que la comida tarda más en cocinarse."
+                ]
+              },
+              "blocks": [
+                {
+                  "type": "text",
+                  "text": "A nivel del mar el agua hierve a unos **100 °C**. En ciudades altas, como Bogotá, hierve cerca de **92 °C**, porque la presión del aire es menor.",
+                  "style": "highlight"
+                },
+                {
+                  "type": "video",
+                  "mediaId": "vid-changes",
+                  "caption": "Segunda parte: cambios de estado.",
+                  "startSec": 60,
+                  "endSec": 150,
+                  "autoplay": false
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "l2-lab-heating",
+          "type": "simulation_lab",
+          "title": "Laboratorio: curva de calentamiento",
+          "modes": [
+            "class",
+            "review"
+          ],
+          "topicRef": "t-temperature",
+          "estimatedDurationSec": 900,
+          "teacherNotes": {
+            "tips": [
+              "Detenga la simulación en el tramo plano y pregunte por qué la temperatura no sube mientras el hielo se derrite."
+            ]
+          },
+          "mediaId": "sim-heating-curve",
+          "learningGoal": "Reconocer que durante un cambio de estado la temperatura se mantiene constante aunque se siga dando calor.",
+          "instructions": "Enciende el calentador y observa la gráfica de temperatura contra tiempo.",
+          "steps": [
+            "Empieza con hielo a -10 °C.",
+            "Enciende el calentador.",
+            "Marca en la gráfica dónde ocurre cada cambio de estado."
+          ],
+          "guidingQuestions": [
+            "¿Qué pasa con la temperatura mientras el hielo se derrite?"
+          ],
+          "launchParams": {
+            "startTemp": -10,
+            "altitudeMeters": 0
+          }
+        },
+        {
+          "id": "l2-activity",
+          "type": "activity",
+          "title": "Practica: cambios de estado",
+          "modes": [
+            "class",
+            "review",
+            "free_learning"
+          ],
+          "topicRef": "t-changes",
+          "estimatedDurationSec": 600,
+          "teacherNotes": {
+            "tips": [
+              "Actividad corta para cerrar la sesión."
+            ]
+          },
+          "instructions": "Responde las preguntas sobre los cambios de estado.",
+          "settings": {
+            "feedback": "immediate",
+            "attemptsAllowed": 2,
+            "shuffleOptions": true
+          },
+          "questions": [
+            {
+              "id": "l2-act-q1",
+              "type": "multiple_choice",
+              "prompt": "El vidrio de la ventana se empaña en una mañana fría. ¿Qué cambio de estado ocurre?",
+              "topicRef": "st-condensation",
+              "difficulty": 2,
+              "estimatedSec": 40,
+              "points": 1,
+              "cognitiveLevel": "apply",
+              "allowMultiple": false,
+              "options": [
+                {
+                  "id": "a",
+                  "text": "Condensación",
+                  "isCorrect": true
+                },
+                {
+                  "id": "b",
+                  "text": "Evaporación",
+                  "isCorrect": false,
+                  "feedback": "En la evaporación el líquido pasa a gas; aquí aparecen gotitas."
+                },
+                {
+                  "id": "c",
+                  "text": "Fusión",
+                  "isCorrect": false,
+                  "feedback": "La fusión es de sólido a líquido."
+                }
+              ],
+              "feedback": {
+                "correct": "Correcto: el vapor del aire pierde calor y pasa a líquido.",
+                "incorrect": "Las gotitas vienen del vapor de agua del aire."
+              }
+            },
+            {
+              "id": "l2-act-q2",
+              "type": "matching",
+              "prompt": "Relaciona cada cambio con su dirección.",
+              "topicRef": "t-changes",
+              "difficulty": 2,
+              "estimatedSec": 60,
+              "points": 4,
+              "partialCredit": true,
+              "left": [
+                {
+                  "id": "melting",
+                  "text": "Fusión"
+                },
+                {
+                  "id": "evaporation",
+                  "text": "Evaporación"
+                },
+                {
+                  "id": "condensation",
+                  "text": "Condensación"
+                },
+                {
+                  "id": "solidification",
+                  "text": "Solidificación"
+                }
+              ],
+              "right": [
+                {
+                  "id": "s-l",
+                  "text": "Sólido a líquido"
+                },
+                {
+                  "id": "l-g",
+                  "text": "Líquido a gas"
+                },
+                {
+                  "id": "g-l",
+                  "text": "Gas a líquido"
+                },
+                {
+                  "id": "l-s",
+                  "text": "Líquido a sólido"
+                }
+              ],
+              "pairs": [
+                {
+                  "leftId": "melting",
+                  "rightId": "s-l"
+                },
+                {
+                  "leftId": "evaporation",
+                  "rightId": "l-g"
+                },
+                {
+                  "leftId": "condensation",
+                  "rightId": "g-l"
+                },
+                {
+                  "leftId": "solidification",
+                  "rightId": "l-s"
+                }
+              ],
+              "wrongPairs": [
+                {
+                  "leftId": "condensation",
+                  "rightId": "l-g",
+                  "feedback": "Esa es la evaporación. La condensación va en sentido contrario."
+                }
+              ],
+              "feedback": {
+                "correct": "Todo en su lugar.",
+                "incorrect": "Revisa la lista de la cátedra."
+              }
+            },
+            {
+              "id": "l2-act-q3",
+              "type": "fill_blanks",
+              "prompt": "Completa con un número.",
+              "topicRef": "t-temperature",
+              "difficulty": 2,
+              "estimatedSec": 30,
+              "points": 1,
+              "template": "A nivel del mar, el agua pura se congela a {{b1}} °C.",
+              "blanks": [
+                {
+                  "id": "b1",
+                  "inputMode": "numeric",
+                  "acceptedAnswers": [
+                    "0"
+                  ],
+                  "numericTolerance": 0,
+                  "wrongAnswers": [
+                    {
+                      "value": "100",
+                      "feedback": "100 °C es la ebullición a nivel del mar."
+                    }
+                  ]
+                }
+              ],
+              "feedback": {
+                "correct": "Correcto.",
+                "incorrect": "Piensa en el hielo, no en el agua hirviendo."
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "l3-assessment",
+      "title": "Evaluación: estados y cambios de la materia",
+      "summary": "Cada alumno recibe cuatro preguntas del banco, equilibradas en dificultad, tiempo y temas.",
+      "estimatedDurationMin": 45,
+      "modes": [
+        "exam"
+      ],
+      "teacherNotes": {
+        "summary": "Lance el examen desde la pantalla o el portal. Las preguntas abiertas quedan pendientes de calificar.",
+        "tips": [
+          "Active el bloqueo de tabletas al terminar el tiempo."
+        ]
+      },
+      "objects": [
+        {
+          "id": "l3-exam",
+          "type": "exam",
+          "title": "Examen de estados de la materia",
+          "modes": [
+            "exam"
+          ],
+          "teacherNotes": {
+            "tips": [
+              "Use la guía de calificación del portal para las respuestas abiertas."
+            ]
+          },
+          "instructions": "Lee con calma. El tiempo disponible aparece arriba de la pantalla.",
+          "settings": {
+            "selection": {
+              "strategy": "random_balanced",
+              "questionCount": 4,
+              "difficultyTolerancePct": 15,
+              "timeTolerancePct": 15,
+              "coverAllTopics": true
+            },
+            "timeLimit": {
+              "policy": "sum_of_estimates",
+              "extraPct": 25
+            },
+            "passingScorePct": 60,
+            "showResults": "after_teacher_release",
+            "allowBackNavigation": true,
+            "shuffleOptions": true
+          },
+          "questions": [
+            {
+              "id": "l3-q1",
+              "type": "multiple_choice",
+              "prompt": "¿Qué estado tiene forma y volumen propios?",
+              "topicRef": "t-states",
+              "difficulty": 1,
+              "estimatedSec": 30,
+              "points": 1,
+              "allowMultiple": false,
+              "options": [
+                {
+                  "id": "a",
+                  "text": "Sólido",
+                  "isCorrect": true
+                },
+                {
+                  "id": "b",
+                  "text": "Líquido",
+                  "isCorrect": false
+                },
+                {
+                  "id": "c",
+                  "text": "Gas",
+                  "isCorrect": false
+                }
+              ],
+              "feedback": {
+                "correct": "Correcto.",
+                "incorrect": "Piensa en cuál no cambia de forma al moverlo."
+              }
+            },
+            {
+              "id": "l3-q2",
+              "type": "true_false",
+              "prompt": "Un gas ocupa todo el espacio del recipiente que lo contiene.",
+              "topicRef": "t-states",
+              "difficulty": 1,
+              "estimatedSec": 20,
+              "points": 1,
+              "answer": true,
+              "feedback": {
+                "correct": "Correcto.",
+                "incorrect": "Las partículas del gas se reparten por todo el recipiente."
+              }
+            },
+            {
+              "id": "l3-q3",
+              "type": "fill_blanks",
+              "prompt": "Completa.",
+              "topicRef": "t-states",
+              "difficulty": 2,
+              "estimatedSec": 40,
+              "points": 1,
+              "template": "En un {{b1}} las partículas se deslizan unas sobre otras.",
+              "blanks": [
+                {
+                  "id": "b1",
+                  "inputMode": "select",
+                  "choices": [
+                    "sólido",
+                    "líquido",
+                    "gas"
+                  ],
+                  "acceptedAnswers": [
+                    "líquido"
+                  ],
+                  "wrongAnswers": [
+                    {
+                      "value": "sólido"
+                    }
+                  ]
+                }
+              ],
+              "feedback": {
+                "correct": "Correcto.",
+                "incorrect": "Revisa el modelo de partículas."
+              }
+            },
+            {
+              "id": "l3-q4",
+              "type": "ordering",
+              "prompt": "Ordena de menor a mayor movimiento de las partículas.",
+              "topicRef": "t-states",
+              "difficulty": 2,
+              "estimatedSec": 45,
+              "points": 2,
+              "items": [
+                {
+                  "id": "x-liquid",
+                  "text": "Líquido"
+                },
+                {
+                  "id": "x-gas",
+                  "text": "Gas"
+                },
+                {
+                  "id": "x-solid",
+                  "text": "Sólido"
+                }
+              ],
+              "correctOrder": [
+                "x-solid",
+                "x-liquid",
+                "x-gas"
+              ],
+              "wrongOrders": [
+                {
+                  "order": [
+                    "x-gas",
+                    "x-liquid",
+                    "x-solid"
+                  ],
+                  "feedback": "Ese es el orden de mayor a menor."
+                }
+              ],
+              "feedback": {
+                "correct": "Correcto.",
+                "incorrect": "El sólido es el que menos se mueve."
+              }
+            },
+            {
+              "id": "l3-q5",
+              "type": "open",
+              "prompt": "Explica por qué un globo inflado se encoge un poco si lo metes en la nevera.",
+              "topicRef": "t-states",
+              "difficulty": 4,
+              "estimatedSec": 150,
+              "points": 3,
+              "responseFormat": "text",
+              "maxLength": 600,
+              "modelAnswer": "Al enfriarse, las partículas del gas dentro del globo pierden energía, se mueven más despacio y se separan menos, así que el gas ocupa menos espacio.",
+              "rubric": [
+                {
+                  "id": "r1",
+                  "criterion": "Relaciona el frío con menos energía o menos movimiento de las partículas.",
+                  "points": 2
+                },
+                {
+                  "id": "r2",
+                  "criterion": "Concluye que el gas ocupa menos espacio.",
+                  "points": 1
+                }
+              ],
+              "incorrectExamples": [
+                {
+                  "text": "Porque el aire se sale del globo.",
+                  "reason": "El globo está cerrado; el aire no sale."
+                }
+              ],
+              "feedback": {
+                "correct": "Pendiente de revisión del profesor.",
+                "incorrect": "Pendiente de revisión del profesor."
+              }
+            },
+            {
+              "id": "l3-q6",
+              "type": "multiple_choice",
+              "prompt": "¿Cuáles son ejemplos de líquidos? Elige todas las correctas.",
+              "topicRef": "t-states",
+              "difficulty": 3,
+              "estimatedSec": 50,
+              "points": 2,
+              "allowMultiple": true,
+              "partialCredit": true,
+              "options": [
+                {
+                  "id": "a",
+                  "text": "Aceite de cocina",
+                  "isCorrect": true
+                },
+                {
+                  "id": "b",
+                  "text": "Jugo de naranja",
+                  "isCorrect": true
+                },
+                {
+                  "id": "c",
+                  "text": "Vapor de agua",
+                  "isCorrect": false
+                },
+                {
+                  "id": "d",
+                  "text": "Sal",
+                  "isCorrect": false
+                }
+              ],
+              "feedback": {
+                "correct": "Correcto.",
+                "incorrect": "Busca los que toman la forma del recipiente sin ocupar todo el espacio."
+              }
+            },
+            {
+              "id": "l3-q7",
+              "type": "multiple_choice",
+              "prompt": "¿Cómo se llama el paso de líquido a gas?",
+              "topicRef": "t-changes",
+              "difficulty": 1,
+              "estimatedSec": 30,
+              "points": 1,
+              "allowMultiple": false,
+              "options": [
+                {
+                  "id": "a",
+                  "text": "Evaporación",
+                  "isCorrect": true
+                },
+                {
+                  "id": "b",
+                  "text": "Condensación",
+                  "isCorrect": false
+                },
+                {
+                  "id": "c",
+                  "text": "Solidificación",
+                  "isCorrect": false
+                }
+              ],
+              "feedback": {
+                "correct": "Correcto.",
+                "incorrect": "Piensa en el agua de la ropa al secarse."
+              }
+            },
+            {
+              "id": "l3-q8",
+              "type": "true_false",
+              "prompt": "Mientras el hielo se derrite, su temperatura sube sin parar.",
+              "topicRef": "t-changes",
+              "difficulty": 3,
+              "estimatedSec": 40,
+              "points": 1,
+              "answer": false,
+              "feedback": {
+                "correct": "Correcto: se mantiene constante durante la fusión.",
+                "incorrect": "Recuerda el tramo plano de la curva de calentamiento."
+              }
+            },
+            {
+              "id": "l3-q9",
+              "type": "matching",
+              "prompt": "Relaciona cada situación con su cambio de estado.",
+              "topicRef": "t-changes",
+              "difficulty": 2,
+              "estimatedSec": 60,
+              "points": 3,
+              "partialCredit": true,
+              "left": [
+                {
+                  "id": "m-ice",
+                  "text": "Un helado al sol"
+                },
+                {
+                  "id": "m-puddle",
+                  "text": "Un charco que desaparece"
+                },
+                {
+                  "id": "m-freezer",
+                  "text": "Agua en el congelador"
+                }
+              ],
+              "right": [
+                {
+                  "id": "r-melting",
+                  "text": "Fusión"
+                },
+                {
+                  "id": "r-evaporation",
+                  "text": "Evaporación"
+                },
+                {
+                  "id": "r-solidification",
+                  "text": "Solidificación"
+                },
+                {
+                  "id": "r-condensation",
+                  "text": "Condensación"
+                }
+              ],
+              "pairs": [
+                {
+                  "leftId": "m-ice",
+                  "rightId": "r-melting"
+                },
+                {
+                  "leftId": "m-puddle",
+                  "rightId": "r-evaporation"
+                },
+                {
+                  "leftId": "m-freezer",
+                  "rightId": "r-solidification"
+                }
+              ],
+              "wrongPairs": [
+                {
+                  "leftId": "m-puddle",
+                  "rightId": "r-condensation",
+                  "feedback": "El charco pasa de líquido a gas."
+                }
+              ],
+              "feedback": {
+                "correct": "Correcto.",
+                "incorrect": "Piensa si el material gana o pierde calor."
+              }
+            },
+            {
+              "id": "l3-q10",
+              "type": "fill_blanks",
+              "prompt": "Completa con un número.",
+              "topicRef": "t-changes",
+              "difficulty": 2,
+              "estimatedSec": 35,
+              "points": 1,
+              "template": "A nivel del mar, el agua pura hierve a {{b1}} °C.",
+              "blanks": [
+                {
+                  "id": "b1",
+                  "inputMode": "numeric",
+                  "acceptedAnswers": [
+                    "100"
+                  ],
+                  "numericTolerance": 0,
+                  "wrongAnswers": [
+                    {
+                      "value": "0",
+                      "feedback": "0 °C es la congelación."
+                    }
+                  ]
+                }
+              ],
+              "feedback": {
+                "correct": "Correcto.",
+                "incorrect": "Es la temperatura de ebullición, no de congelación."
+              }
+            },
+            {
+              "id": "l3-q11",
+              "type": "ordering",
+              "prompt": "Ordena lo que pasa al calentar un cubo de hielo durante mucho tiempo.",
+              "topicRef": "t-changes",
+              "difficulty": 3,
+              "estimatedSec": 50,
+              "points": 2,
+              "items": [
+                {
+                  "id": "y-gas",
+                  "text": "Vapor"
+                },
+                {
+                  "id": "y-solid",
+                  "text": "Hielo"
+                },
+                {
+                  "id": "y-liquid",
+                  "text": "Agua líquida"
+                }
+              ],
+              "correctOrder": [
+                "y-solid",
+                "y-liquid",
+                "y-gas"
+              ],
+              "wrongOrders": [
+                {
+                  "order": [
+                    "y-solid",
+                    "y-gas",
+                    "y-liquid"
+                  ],
+                  "feedback": "Primero se derrite y después se evapora."
+                }
+              ],
+              "feedback": {
+                "correct": "Correcto.",
+                "incorrect": "Sigue el orden de la curva de calentamiento."
+              }
+            },
+            {
+              "id": "l3-q12",
+              "type": "open",
+              "prompt": "Explica por qué en Bogotá el agua hierve a menos temperatura que en Cartagena.",
+              "topicRef": "t-changes",
+              "difficulty": 4,
+              "estimatedSec": 150,
+              "points": 3,
+              "responseFormat": "text",
+              "maxLength": 600,
+              "modelAnswer": "Bogotá está a mayor altura, donde la presión del aire es menor. Con menos presión, el agua necesita menos temperatura para hervir.",
+              "rubric": [
+                {
+                  "id": "r1",
+                  "criterion": "Menciona la diferencia de altura entre las dos ciudades.",
+                  "points": 1
+                },
+                {
+                  "id": "r2",
+                  "criterion": "Relaciona la altura con menor presión del aire y menor punto de ebullición.",
+                  "points": 2
+                }
+              ],
+              "incorrectExamples": [
+                {
+                  "text": "Porque en Bogotá hace más frío.",
+                  "reason": "La temperatura del ambiente no cambia el punto de ebullición; lo cambia la presión."
+                }
+              ],
+              "feedback": {
+                "correct": "Pendiente de revisión del profesor.",
+                "incorrect": "Pendiente de revisión del profesor."
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
