@@ -2,8 +2,8 @@
 
 | Campo | Valor |
 |---|---|
-| Módulo | `aula` · **MOD-007 · Classroom Engine** del Documento Maestro (DOM-004 · Operación del Aula) |
-| Estado | **Implementado y probado** en `backend/aula/`: 10 tablas `m07_*` (migración `0001_initial`), consumo del curso en vivo, endpoint de prueba con `example.json` y ciclo de vida completo de la sesión de clase. 43 pruebas nuevas; la suite completa del backend (161) en verde. Pendiente: canal en vivo (§9.6) y lo listado en §12 |
+| Módulo | app `classroom_engine` · **MOD-007 · Classroom Engine** del Documento Maestro (DOM-004 · Operación del Aula) |
+| Estado | **Implementado y probado** en `backend/classroom_engine/`: 10 tablas `m07_*` (migración `0001_initial`), consumo del curso en vivo, endpoint de prueba con `example.json` y ciclo de vida completo de la sesión de clase. 43 pruebas nuevas; la suite completa del backend (161) en verde. Pendiente: canal en vivo (§9.6) y lo listado en §12 |
 | Prefijo de tablas | `m07_` (CV-01) · 10 tablas · ninguna de curso |
 | Plataforma | Python 3.12 · Django 5.2.3 · DRF 3.16.1 · SQLite · arquitectura hexagonal (misma disposición que `acceso/`) |
 | Cliente | .NET MAUI: AVACOM LMS OPS (Windows, pantalla táctil **sin teclado**) y AVACOM LMS Student (Windows y Android) |
@@ -47,7 +47,7 @@ Consecuencias verificables:
 - **Ninguna FK hacia contenido** (CV-08): toda referencia es texto. Cambiar la versión del curso en la biblioteca cambia lo que ven las tabletas sin ninguna operación en el LMS (artículo 14.3).
 - **La fuente de ejemplo no es una caché.** Lee `example.json` del disco en cada petición, igual que el cliente relee `enlace.json`. No existe ninguna tabla ni columna donde quepa el manifiesto.
 - **Los rótulos no deciden nada.** `curso_rotulo`, `leccion_rotulo`, `rotulo` del foco… existen para poder mostrar la sesión de ayer con la biblioteca cerrada, y se escriben una sola vez.
-- **Prueba de esquema.** `aula.tests.test_arquitectura.test_el_esquema_es_solo_de_aula_sin_curso_ni_claves` falla si aparece una tabla cuyo nombre contenga `curso`, `asignatura`, `leccion`, `objeto`, `lamina`, `bloque`, `medio`, `pregunta`, `opcion` o `materia`, o una columna con `clave`, `correcta` o `solucion`.
+- **Prueba de esquema.** `classroom_engine.tests.test_arquitectura.test_el_esquema_es_solo_de_aula_sin_curso_ni_claves` falla si aparece una tabla cuyo nombre contenga `curso`, `asignatura`, `leccion`, `objeto`, `lamina`, `bloque`, `medio`, `pregunta`, `opcion` o `materia`, o una columna con `clave`, `correcta` o `solucion`.
 
 ---
 
@@ -437,7 +437,7 @@ Además, asientos en `m19_auditoria` con acciones `aula.*` (sesión iniciada, su
 ## 8 · Arquitectura del módulo
 
 ```
-backend/aula/
+backend/classroom_engine/
   dominio/       catalogos.py (los tres catálogos y las claves prohibidas) · curso.py (normalizador, localizar, tramos)
                  sesion.py (estados, transiciones, eventos, permisos, ViaDeInicio, código) · errores.py
   aplicacion/    puertos.py (Protocols) · casos_uso.py (5 de curso + 18 de sesión)
@@ -679,11 +679,11 @@ Hoy la tableta **sondea** `GET …/estado/` cada `intervalo_sondeo_ms` (2 s), lo
 
 | Suite | Qué comprueba |
 |---|---|
-| `aula.tests.test_arquitectura` (3) | Sin frameworks en dominio/aplicación; vistas sin ORM; esquema sólo `m07_*` sin contenido ni claves |
-| `aula.tests.test_curso` (19) | Endpoint de prueba, clasificación, componentes, láminas/tramos, lectura (audio/pdf), laboratorio (WebView, parámetros), seis preguntas sin claves, examen fuera de alcance, notas del docente por rol, lista por asignatura, lección/objeto sueltos, resolución automática de la fuente, fuente desconocida, biblioteca ausente, marcadores (PNG/WAV/PDF/HTML/VTT/texto, `Range`, `HEAD`), video 404; normalizador (tramos, agrupación, `sin_claves`, `localizar`); la misma vista servida por la biblioteca (host de pruebas con el manifiesto), árbol del contrato 1 y medios en paso a través |
-| `aula.tests.test_sesiones` (21) | Iniciar por las cuatro vías, BR-045, DEC-035, vías mal formadas, unirse y readmitir, código equivocado, presencia, expulsar/readmitir, foco, controles, distribuciones, avisos, rotar código, suspender/reanudar, cerrar con resumen y BR-052, archivo a 24 h, padrón de MOD-001 (inscrito entra, invitado espera, 403 al estudiante) |
+| `classroom_engine.tests.test_arquitectura` (3) | Sin frameworks en dominio/aplicación; vistas sin ORM; esquema sólo `m07_*` sin contenido ni claves |
+| `classroom_engine.tests.test_curso` (19) | Endpoint de prueba, clasificación, componentes, láminas/tramos, lectura (audio/pdf), laboratorio (WebView, parámetros), seis preguntas sin claves, examen fuera de alcance, notas del docente por rol, lista por asignatura, lección/objeto sueltos, resolución automática de la fuente, fuente desconocida, biblioteca ausente, marcadores (PNG/WAV/PDF/HTML/VTT/texto, `Range`, `HEAD`), video 404; normalizador (tramos, agrupación, `sin_claves`, `localizar`); la misma vista servida por la biblioteca (host de pruebas con el manifiesto), árbol del contrato 1 y medios en paso a través |
+| `classroom_engine.tests.test_sesiones` (21) | Iniciar por las cuatro vías, BR-045, DEC-035, vías mal formadas, unirse y readmitir, código equivocado, presencia, expulsar/readmitir, foco, controles, distribuciones, avisos, rotar código, suspender/reanudar, cerrar con resumen y BR-052, archivo a 24 h, padrón de MOD-001 (inscrito entra, invitado espera, 403 al estudiante) |
 
-Ejecutar: `cd backend; .venv\Scripts\python manage.py test aula` (o toda la suite sin argumento).
+Ejecutar: `cd backend; .venv\Scripts\python manage.py test classroom_engine` (o toda la suite sin argumento).
 
 ---
 

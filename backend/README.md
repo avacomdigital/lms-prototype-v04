@@ -98,7 +98,7 @@ set AVACOM_CONTENIDO_ENLACE=%TEMP%\enlace-pruebas.json
 | `/api/acceso/autorizaciones-temporales/…` | POST, GET, DELETE · `canjear/` | Acceso temporal a examen (tableta autorizada o código de un solo uso) |
 | `/api/acceso/roles/`, `permisos/`, `politicas/{perfil}/[?nivel=]`, `grupos/…` | GET, POST, PUT, PATCH | Catálogos y configuración del colegio, políticas por nivel educativo |
 
-El módulo `aula/` implementa **MOD-007 · Classroom Engine** (sesión de clase, participantes, foco, controles,
+La app `classroom_engine/` implementa **MOD-007 · Classroom Engine** (sesión de clase, participantes, foco, controles,
 distribuciones, avisos, resumen y cola de salida `aula.*.v1`) con la misma arquitectura hexagonal. Está especificado en
 [`spec-driven/02-classroom-engine/01-modelo-de-datos.md`](../spec-driven/02-classroom-engine/01-modelo-de-datos.md) (modelo `m07_*`
 y contrato de `/api/aula/`) y [`02-sugerencias-frontend.md`](../spec-driven/02-classroom-engine/02-sugerencias-frontend.md) (componente MAUI).

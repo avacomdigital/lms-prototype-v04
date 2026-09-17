@@ -23,7 +23,7 @@ INSTALLED_APPS = [
     "acceso",
     "biblioteca",
     "expediente",
-    "aula",
+    "classroom_engine",
 ]
 
 MIDDLEWARE = [
@@ -89,8 +89,8 @@ AVACOM_CONTENIDO_ENLACE = os.environ.get("AVACOM_CONTENIDO_ENLACE") or None
 # segundos, no va a contestar, y esperar más congela la pantalla del profesor.
 AVACOM_CONTENIDO_TIEMPO_ESPERA_SEG = float(os.environ.get("AVACOM_CONTENIDO_TIEMPO_ESPERA_SEG", "3"))
 
-# ---------------------------------------------------------------------- Aula
-# MOD-007 · Classroom Engine. La fuente de cursos por defecto es la biblioteca; el
+# ---------------------------------------------------- Classroom Engine (MOD-007)
+# App `classroom_engine`. La fuente de cursos por defecto es la biblioteca; el
 # manifiesto de ejemplo (spec-driven/02-classroom-engine/example.json) alimenta el
 # endpoint de prueba mientras la biblioteca publica el esquema de curso 1.0.
 AVACOM_AULA_FUENTE_CURSOS = os.environ.get("AVACOM_AULA_FUENTE_CURSOS", "biblioteca")

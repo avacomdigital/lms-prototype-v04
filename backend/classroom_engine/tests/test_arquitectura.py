@@ -32,9 +32,9 @@ class ArquitecturaTests(SimpleTestCase):
         """Regla de oro (artículo 14): ninguna tabla de curso, asignatura, lección, objeto, pregunta ni opción."""
         from django.apps import apps
 
-        modelos = apps.get_app_config("aula").get_models()
+        modelos = apps.get_app_config("classroom_engine").get_models()
         tablas = {m._meta.db_table for m in modelos}
-        self.assertTrue(tablas, "la app aula debe tener tablas m07_*")
+        self.assertTrue(tablas, "la app classroom_engine debe tener tablas m07_*")
         for tabla in tablas:
             self.assertTrue(tabla.startswith("m07_"), tabla)
             for prohibida in ("curso", "asignatura", "leccion", "objeto", "lamina", "bloque", "medio", "pregunta", "opcion", "materia"):
