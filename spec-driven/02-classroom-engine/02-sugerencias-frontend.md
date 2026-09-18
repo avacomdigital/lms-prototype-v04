@@ -7,6 +7,7 @@
 | Contrato que consume | `/api/aula/` según [01 · Modelo de datos y API](01-modelo-de-datos.md) §9. El endpoint de arranque es `GET /api/aula/pruebas/curso/` |
 | Arquitectura | MVVM sobre la disposición actual: `Avacom.Lms.Core` (modelos, servicios HTTP) → `Avacom.Lms.Ui` (controles compartidos) → `Avacom.Lms.Ops` / `Avacom.Lms.Student` (páginas) |
 | Regla de oro | El cliente **no guarda el curso**: lo pide en vivo, lo pinta y sólo conserva referencias (`curso_ref`, `objeto_ref`, `participante_id`) en `Preferences` |
+| Journey que prevalece | [03 · Journey «Clase de Hoy»](03-journey-clase-de-hoy.md): la versión corta (4 pantallas en OPS + 2 en Student) que alimenta el prompt del frontend. Este documento aporta los DTO, el mapa de componentes y las reglas de WebView que ese journey reutiliza |
 | Documentos hermanos | [00 · Introducción](00-introduccion.md) · [07 · Comunicación OPS ↔ Student](../07-comunicacion-ops-student.md) · [Sugerencias del módulo de acceso](../../specs/presentaciones/acceso-sugerencias.html) (privado) |
 
 ---
@@ -291,6 +292,8 @@ Regla de degradación (copiada de `BibliotecaDeContenido`): `503`, `501` y error
 | `actividad` | `ActividadView`: instrucciones + `ajustes` (intentos, retroalimentación) + lista de preguntas con `PreguntaTemplateSelector` | La respuesta viaja por el flujo de intentos existente (`IniciarIntentoAsync`, `ResponderAsync`, `FinalizarIntentoAsync`) con `evaluacion_ref = objeto_ref` cuando MOD-010 lo soporte (Q-48). Hasta entonces, el modo «vista previa» pinta las preguntas sin enviar |
 | `examen` | Tarjeta atenuada `FueraDeAlcanceView` | Muestra `total_preguntas_banco`, `ajustes.seleccion.cantidad_preguntas`, `aprobacion_pct` y «Lo aplica el módulo de evaluación (MOD-010)». Sin acciones |
 | `no_soportado` | `AvisoBloqueView` | «Este contenido todavía no tiene visor en el LMS» + `tipo` |
+
+Es importante aclarar que para algunos componentes se llegue a requerir WebView de MAUI de C# en .NET para algunos componentes que requieren una interacción tipo dinámica. Cómolos laboratorios de phet de phet.colorado.edu que se muestra como componente. También es importante tener en cuenta esto en el momento de gneerar el instalador. 
 
 ### 4.2 · Bloque → control
 
