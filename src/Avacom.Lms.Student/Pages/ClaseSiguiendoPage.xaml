@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Avacom.Lms.Student.Pages.ClaseSiguiendoPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:ui="clr-namespace:Avacom.Lms.Ui.Controls;assembly=Avacom.Lms.Ui"
+    Shell.NavBarIsVisible="False">
+    <Grid>
+        <Grid RowDefinitions="Auto,*" Padding="16,12,16,16" RowSpacing="12">
+            <Border Grid.Row="0" Padding="12,8" BackgroundColor="#B3FFFFFF" Stroke="#17000000" StrokeThickness="1" StrokeShape="RoundRectangle 22">
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
+                    <VerticalStackLayout VerticalOptions="Center" Spacing="0">
+                        <Label x:Name="TituloLabel" Text="En clase" FontSize="18" FontAttributes="Bold" LineBreakMode="TailTruncation" />
+                        <Label x:Name="SubtituloLabel" Text="" FontSize="13" TextColor="#52525B" LineBreakMode="TailTruncation" />
+                    </VerticalStackLayout>
+                    <Border x:Name="ConexionChip" Grid.Column="1" BackgroundColor="#E6F5EE" StrokeThickness="0" StrokeShape="RoundRectangle 999" Padding="12,7" VerticalOptions="Center">
+                        <Label x:Name="ConexionLabel" Text="●  Conectado" FontSize="13" FontAttributes="Bold" TextColor="#019D60" />
+                    </Border>
+                    <Button Grid.Column="2" Text="Salir" BackgroundColor="Transparent" TextColor="#27272A" FontSize="17" FontAttributes="Bold" HeightRequest="52" Clicked="OnSalir" />
+                </Grid>
+            </Border>
+            <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto" RowSpacing="10">
+                <VerticalStackLayout x:Name="AvisosHost" Grid.Row="0" Spacing="8" />
+                <ui:AulaContenidoView x:Name="Visor" Grid.Row="1" />
+                <VerticalStackLayout x:Name="PendientesHost" Grid.Row="2" Spacing="8" />
+            </Grid>
+        </Grid>
+        <ui:BloqueoView x:Name="Bloqueo" />
+    </Grid>
+</ContentPage>

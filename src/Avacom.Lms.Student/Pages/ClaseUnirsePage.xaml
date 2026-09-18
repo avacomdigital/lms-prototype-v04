@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Avacom.Lms.Student.Pages.ClaseUnirsePage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    Shell.NavBarIsVisible="False">
+    <Grid RowDefinitions="Auto,*">
+        <Border Grid.Row="0" Margin="16,12,16,0" Padding="12,8" BackgroundColor="#B3FFFFFF" Stroke="#17000000" StrokeThickness="1" StrokeShape="RoundRectangle 22">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Button Text="←  Menú" BackgroundColor="Transparent" TextColor="#27272A" FontSize="17" FontAttributes="Bold" HeightRequest="52" Clicked="OnVolver" />
+                <Label Grid.Column="1" Text="Entrar a la clase" FontSize="20" FontAttributes="Bold" HorizontalTextAlignment="Center" VerticalOptions="Center" />
+                <Label x:Name="NombreLabel" Grid.Column="2" Text="" FontSize="14" TextColor="#52525B" VerticalOptions="Center" />
+            </Grid>
+        </Border>
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="20,20,20,40" Spacing="18" MaximumWidthRequest="520" HorizontalOptions="Center">
+                <Label Text="Escribe el código que muestra tu profesor" FontSize="24" FontAttributes="Bold" HorizontalTextAlignment="Center" LineBreakMode="WordWrap" />
+                <HorizontalStackLayout x:Name="CasillasHost" Spacing="10" HorizontalOptions="Center" />
+                <VerticalStackLayout x:Name="AvisoHost" Spacing="8" />
+                <Grid x:Name="Teclado" ColumnDefinitions="*,*,*" RowDefinitions="76,76,76,76" ColumnSpacing="14" RowSpacing="14" />
+                <VerticalStackLayout x:Name="AccionesHost" Spacing="10" />
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

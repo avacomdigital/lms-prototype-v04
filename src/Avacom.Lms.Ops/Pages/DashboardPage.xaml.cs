@@ -23,6 +23,8 @@ public partial class DashboardPage : ContentPage
                 await Shell.Current.GoToAsync("asignaturas");
                 break;
             case "Clase de hoy":
+                await Shell.Current.GoToAsync("clase-hoy");
+                break;
             case "Reportes":
                 await Shell.Current.GoToAsync("activity-monitor");
                 break;
@@ -33,6 +35,6 @@ public partial class DashboardPage : ContentPage
     }
 
     private async void OnAssignmentsClicked(object? sender, EventArgs e) => await Shell.Current.GoToAsync("asignaturas");
-    private async void OnClassTodayClicked(object? sender, EventArgs e) => await Shell.Current.GoToAsync("activity-monitor");
+    private async void OnClassTodayClicked(object? sender, EventArgs e) => await Shell.Current.GoToAsync("clase-hoy");
     private async void OnLogoutClicked(object? sender, EventArgs e) => await Shell.Current.GoToAsync("//login");
 }

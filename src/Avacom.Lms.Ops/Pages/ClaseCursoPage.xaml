@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage
+    x:Class="Avacom.Lms.Ops.Pages.ClaseCursoPage"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    Shell.NavBarIsVisible="False">
+    <Grid RowDefinitions="Auto,*,Auto">
+        <Border Grid.Row="0" Margin="24,16,24,0" Padding="16,10" BackgroundColor="#B3FFFFFF" Stroke="#17000000" StrokeThickness="1" StrokeShape="RoundRectangle 22">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                <Button Text="←  Materias" BackgroundColor="Transparent" TextColor="#27272A" FontSize="18" FontAttributes="Bold" HeightRequest="52" Clicked="OnVolver" />
+                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Spacing="0">
+                    <Label x:Name="TituloLabel" Text="Curso" FontSize="22" FontAttributes="Bold" HorizontalTextAlignment="Center" LineBreakMode="TailTruncation" />
+                    <Label x:Name="SubtituloLabel" Text="" FontSize="14" TextColor="#52525B" HorizontalTextAlignment="Center" LineBreakMode="TailTruncation" />
+                </VerticalStackLayout>
+                <Button x:Name="NotasBtn" Grid.Column="2" Text="Notas del docente" BackgroundColor="Transparent" TextColor="#27272A" FontSize="16" FontAttributes="Bold" HeightRequest="52" Clicked="OnNotas" />
+            </Grid>
+        </Border>
+
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout Padding="48,24,48,40" Spacing="18" MaximumWidthRequest="1120" HorizontalOptions="Center">
+                <VerticalStackLayout x:Name="CabeceraHost" Spacing="10" />
+                <VerticalStackLayout x:Name="NotasHost" Spacing="8" IsVisible="False" />
+                <VerticalStackLayout x:Name="AvisoHost" Spacing="10" />
+                <Label Text="Elige la lección con la que empieza la clase" FontSize="22" FontAttributes="Bold" />
+                <VerticalStackLayout x:Name="LeccionesHost" Spacing="14" />
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Barra de acción · dark glass. Un solo Primary en la pantalla. -->
+        <Border Grid.Row="2" Margin="24,0,24,20" Padding="16,12" BackgroundColor="#D1141417" StrokeThickness="0" StrokeShape="RoundRectangle 22">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
+                <Button x:Name="LibreBtn" Text="Clase libre" BackgroundColor="Transparent" TextColor="White" FontSize="18" FontAttributes="Bold" HeightRequest="64" Padding="18,0" Clicked="OnClaseLibre" />
+                <Label x:Name="SeleccionLabel" Grid.Column="1" Text="Toca una lección para seleccionarla" TextColor="#D4D4D8" FontSize="16" VerticalOptions="Center" HorizontalTextAlignment="Center" LineBreakMode="TailTruncation" />
+                <Button x:Name="DarClaseBtn" Grid.Column="2" Text="Dar clase con esta lección" BackgroundColor="#E5262B" TextColor="White" FontSize="20" FontAttributes="Bold" CornerRadius="16" HeightRequest="64" Padding="26,0" IsEnabled="False" Opacity="0.5" Clicked="OnDarClase" />
+            </Grid>
+        </Border>
+    </Grid>
+</ContentPage>

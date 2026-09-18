@@ -11,7 +11,12 @@ public static class Sesion
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(15) };
     private static IBibliotecaDeContenido? _biblioteca;
+    private static IAulaApi? _aula;
     private static Uri? _baseActual;
+    private static Uri? _baseAula;
+
+    /// <summary>Misma fuente que OPS (ver <c>Avacom.Lms.Ops.Sesion.FuenteAula</c>): «ejemplo» hasta que Biblioteca publique el manifiesto.</summary>
+    public const string FuenteAula = "ejemplo";
 
     public static string Nombre => Preferences.Default.Get("student_name", ConnectionOptions.Default.StudentName);
     public static string PersonaId => Identidad.SlugDe(Nombre);
@@ -40,7 +45,47 @@ public static class Sesion
         }
     }
 
+    public static IAulaApi Aula
+    {
+        get
+        {
+            var actual = BaseUri;
+            if (_aula is null || _baseAula != actual)
+            {
+                _aula = new AulaApi(Http, actual, FuenteAula);
+                _baseAula = actual;
+            }
+            return _aula;
+        }
+    }
+
     public static string Dispositivo => $"student-{DeviceInfo.Current.Name}";
+
+    /// <summary>La participación en curso: se conserva para readmitirse sin escribir el código (FUN-077, RF-A10).</summary>
+    public static string? ClaseSesionId
+    {
+        get => Preferences.Default.Get<string?>("aula_sesion", null);
+        set { if (value is null) Preferences.Default.Remove("aula_sesion"); else Preferences.Default.Set("aula_sesion", value); }
+    }
+
+    public static string? ClaseParticipanteId
+    {
+        get => Preferences.Default.Get<string?>("aula_participante", null);
+        set { if (value is null) Preferences.Default.Remove("aula_participante"); else Preferences.Default.Set("aula_participante", value); }
+    }
+
+    public static string? ClaseCodigo
+    {
+        get => Preferences.Default.Get<string?>("aula_codigo", null);
+        set { if (value is null) Preferences.Default.Remove("aula_codigo"); else Preferences.Default.Set("aula_codigo", value); }
+    }
+
+    public static void OlvidarClase()
+    {
+        ClaseSesionId = null;
+        ClaseParticipanteId = null;
+        ClaseCodigo = null;
+    }
 
     public static readonly string[] Paleta = ["#E5262B", "#F3C701", "#01A4E1", "#019D60", "#A81D81", "#52525B"];
 
