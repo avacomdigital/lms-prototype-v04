@@ -40,6 +40,12 @@ class ReferenciaNoEncontrada(NoEncontrado):
     codigo = "referencia_no_encontrada"
 
 
+class DesactivadoPorPolitica(NoEncontrado):
+    """La política del colegio desactivó ese curso o contenido en la biblioteca (`disabled_by_policy`).
+    Para el aula es «no disponible»: no se muestra ni se guarda (§7 del mapeo)."""
+    codigo = "desactivado_por_politica"
+
+
 class TransicionInvalida(ErrorAula):
     """La sesión de clase no admite esa transición desde su estado actual (INV-025)."""
     codigo = "transicion_invalida"

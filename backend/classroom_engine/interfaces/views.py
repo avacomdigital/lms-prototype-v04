@@ -46,6 +46,11 @@ class VistaAula(APIView):
         return request.query_params.get("fuente") or None
 
     @staticmethod
+    def _version(request) -> str | None:
+        """`?version=1.1.0` pide una versión archivada del curso (reconstruir un intento viejo). Sin ella, la instalada."""
+        return request.query_params.get("version") or None
+
+    @staticmethod
     def _rol(request) -> str:
         """El rol lo decide la sesión (MOD-001) cuando hay una; sin sesión lo declara el cliente y por defecto es el más restrictivo."""
         principal = principal_de(request)
@@ -101,6 +106,13 @@ def _respuesta_bytes(request, medio: Bytes, metodo: str):
 
 # --------------------------------------------------------------- el curso
 
+class FuenteView(VistaAula):
+    """¿Hay contenido? Estado de la fuente de cursos (link.json, salud, cursos instalados, huella). Nunca 503."""
+
+    def get(self, request):
+        return Response(cu.EstadoFuente(servicios()).ejecutar(self._fuente(request)))
+
+
 class CursosView(VistaAula):
     """Los cursos ofrecidos por la fuente, agrupados por asignatura (panel de navegación)."""
 
@@ -112,17 +124,27 @@ class CursoView(VistaAula):
     """La vista de aula completa: clasificación, medios, lecciones, objetos, bloques y preguntas sin claves."""
 
     def get(self, request, curso_ref: str):
-        return Response(cu.ConsultarCurso(servicios()).ejecutar(curso_ref, self._rol(request), self._fuente(request)))
+        return Response(cu.ConsultarCurso(servicios()).ejecutar(curso_ref, self._rol(request), self._fuente(request), self._version(request)))
 
 
 class LeccionView(VistaAula):
     def get(self, request, curso_ref: str, leccion_ref: str):
-        return Response(cu.ConsultarLeccion(servicios()).ejecutar(curso_ref, leccion_ref, self._rol(request), self._fuente(request)))
+        return Response(cu.ConsultarLeccion(servicios()).ejecutar(
+            curso_ref, leccion_ref, self._rol(request), self._fuente(request), self._version(request)))
 
 
 class ObjetoView(VistaAula):
     def get(self, request, curso_ref: str, objeto_ref: str):
-        return Response(cu.ConsultarObjeto(servicios()).ejecutar(curso_ref, objeto_ref, self._rol(request), self._fuente(request)))
+        return Response(cu.ConsultarObjeto(servicios()).ejecutar(
+            curso_ref, objeto_ref, self._rol(request), self._fuente(request), self._version(request)))
+
+
+class EvaluarView(VistaAula):
+    """`POST /v2/evaluate` visto desde el aula: `{version, objeto_ref, pregunta_ref, respuesta}` o
+    `{version, items:[…]}` (hasta 200). Devuelve el veredicto sin ninguna clave; no escribe (MOD-010, Q-48)."""
+
+    def post(self, request, curso_ref: str):
+        return Response(cu.EvaluarRespuesta(servicios()).ejecutar(curso_ref, request.data or {}, self._fuente(request)))
 
 
 class MedioView(VistaAula):

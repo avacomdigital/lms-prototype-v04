@@ -2,10 +2,11 @@
 Fuente de cursos de EJEMPLO: el manifiesto `example.json` (curso «Ciencias naturales ·
 Estados de la materia y sus cambios») leído del disco EN CADA petición.
 
-Existe porque los endpoints de AVACOM Biblioteca para este esquema se desarrollan en
-paralelo. Tiene la misma forma que la fuente real (`FuenteBiblioteca`): el resto del
-módulo no distingue una de otra. No escribe nada, no cachea nada y no guarda el curso
-en ninguna tabla (regla de oro, artículo 14).
+Existe para probar el aula sin AVACOM Biblioteca instalada. Tiene la misma forma que la
+fuente real (`FuenteBiblioteca`, API de Contenido v2): el resto del módulo no distingue
+una de otra. No escribe nada, no cachea nada y no guarda el curso en ninguna tabla
+(regla de oro, artículo 14). Lo único que NO hace es calificar: la clave se compara
+sólo donde vive, así que `evaluar` responde 501 en vez de simular un veredicto.
 """
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ import os
 from urllib.parse import unquote
 
 from ..aplicacion.puertos import Bytes
-from ..dominio.errores import CursoNoEncontrado, FuenteNoDisponible, ReferenciaNoEncontrada
+from ..dominio.errores import CapacidadAusente, CursoNoEncontrado, FuenteNoDisponible, ReferenciaNoEncontrada
 from . import marcadores
 
 ALIAS = ("ejemplo", "ciencias-naturales")   # atajos para el endpoint de prueba
@@ -46,11 +47,36 @@ class FuenteEjemplo:
     def cursos(self) -> list[dict]:
         return [self._leer()]
 
-    def curso(self, curso_ref: str) -> dict:
+    def curso(self, curso_ref: str, *, version: str | None = None, rol: str = "estudiante") -> dict:
+        """El manifiesto completo (el normalizador quita las claves y las notas según el rol).
+        Sólo existe una versión: pedir otra es no encontrarla, igual que en la biblioteca."""
         manifiesto = self._leer()
         if curso_ref in ALIAS or curso_ref == str(manifiesto.get("id", "")):
+            if version and version != str(manifiesto.get("version", "")):
+                raise CursoNoEncontrado(f"La fuente de ejemplo sólo tiene la versión {manifiesto.get('version')}.",
+                                        curso_ref=curso_ref, version=version)
             return manifiesto
         raise CursoNoEncontrado(f"La fuente de ejemplo sólo conoce «{manifiesto.get('id')}».", curso_ref=curso_ref)
+
+    # ------------------------------------------------------------- evaluar
+    def evaluar(self, curso_ref: str, version: str, objeto_ref: str, pregunta_ref: str, respuesta: dict) -> dict:
+        raise CapacidadAusente(
+            "La fuente de ejemplo no califica: la clave se compara sólo donde vive, en AVACOM Biblioteca (POST /v2/evaluate).",
+            capacidades=[], sugerencia="Usa la fuente «biblioteca» para evaluar respuestas.")
+
+    def evaluar_lote(self, curso_ref: str, version: str, items: list[dict]) -> list[dict]:
+        return [self.evaluar(curso_ref, version, i.get("objectId", ""), i.get("questionId", ""), i.get("response") or {}) for i in items]
+
+    def estado(self) -> dict:
+        try:
+            manifiesto = self._leer()
+        except FuenteNoDisponible as error:
+            return {"disponible": False, "motivo": error.detalle, "sugerencia": error.sugerencia, "ruta": self.ruta,
+                    "huella": "", "cursos_instalados": []}
+        return {"disponible": True, "motivo": "", "sugerencia": None, "ruta": self.ruta,
+                "huella": f"ejemplo-{manifiesto.get('id')}@{manifiesto.get('version')}",
+                "cursos_instalados": [{"curso_ref": str(manifiesto.get("id", "")), "version": str(manifiesto.get("version", "")),
+                                       "titulo": manifiesto.get("title")}]}
 
     # ---------------------------------------------------------------- medios
     def medio(self, curso_ref: str, media_ref: str, ruta: str | None, rango: str | None, metodo: str) -> Bytes:

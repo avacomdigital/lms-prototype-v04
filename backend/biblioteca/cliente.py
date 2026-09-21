@@ -63,11 +63,12 @@ class BibliotecaNoDisponible(Exception):
 class BibliotecaError(Exception):
     """La biblioteca contestó, pero con error. Lleva el código HTTP y el detalle."""
 
-    def __init__(self, estado: int, detalle: str, capacidades: list[str] | None = None):
+    def __init__(self, estado: int, detalle: str, capacidades: list[str] | None = None, codigo: str = ""):
         super().__init__(f"{estado}: {detalle}")
         self.estado = estado
         self.detalle = detalle
         self.capacidades = capacidades or []
+        self.codigo = codigo          # código de error del contrato v2 (`course_not_found`…); vacío en el contrato 1
 
 
 # ------------------------------------------------------------ descubrimiento

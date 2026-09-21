@@ -16,7 +16,9 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from ..dominio import catalogos as cat
 from ..dominio import curso as cur
+from ..dominio import respuestas as resp
 from ..dominio import sesion as dom
 from ..dominio.errores import (
     ActividadesAbiertas,
@@ -54,9 +56,11 @@ class _CasoDeUso:
         self.s = servicios
 
     # ------------------------------------------------------------ el curso, en vivo
-    def _vista(self, fuente_nombre: str | None, curso_ref: str, rol: str) -> tuple[dict, str]:
+    def _vista(self, fuente_nombre: str | None, curso_ref: str, rol: str, version: str | None = None) -> tuple[dict, str]:
+        """`version` sólo se pide para reconstruir algo hecho con una versión archivada (un
+        intento viejo); la clase en vivo siempre ve la versión instalada (artículo 14.3)."""
         fuente = self.s.fuente(fuente_nombre, curso_ref)
-        crudo = fuente.curso(curso_ref)
+        crudo = fuente.curso(curso_ref, version=version or None, rol=rol if rol in cat.ROLES else "estudiante")
         # Las URL de los medios llevan la referencia REAL del curso, aunque se haya pedido por un alias.
         ref_real = str(crudo.get("id") or crudo.get("curso_ref") or curso_ref)
         vista = cur.normalizar(
@@ -92,16 +96,17 @@ class ConsultarCursos(_CasoDeUso):
 class ConsultarCurso(_CasoDeUso):
     """La vista de aula completa de un curso, para el rol indicado. No escribe."""
 
-    def ejecutar(self, curso_ref: str, rol: str = "estudiante", fuente_nombre: str | None = None) -> dict:
-        vista, _ = self._vista(fuente_nombre, curso_ref, rol)
+    def ejecutar(self, curso_ref: str, rol: str = "estudiante", fuente_nombre: str | None = None, version: str | None = None) -> dict:
+        vista, _ = self._vista(fuente_nombre, curso_ref, rol, version)
         return vista
 
 
 class ConsultarLeccion(_CasoDeUso):
     """Una lección con sus objetos: la carga que baja una tableta al seguir la clase."""
 
-    def ejecutar(self, curso_ref: str, leccion_ref: str, rol: str = "estudiante", fuente_nombre: str | None = None) -> dict:
-        vista, _ = self._vista(fuente_nombre, curso_ref, rol)
+    def ejecutar(self, curso_ref: str, leccion_ref: str, rol: str = "estudiante", fuente_nombre: str | None = None,
+                 version: str | None = None) -> dict:
+        vista, _ = self._vista(fuente_nombre, curso_ref, rol, version)
         hallado = cur.localizar(vista, leccion_ref=leccion_ref)
         return {"curso": _ficha(vista), "leccion": hallado["leccion"]}
 
@@ -109,8 +114,9 @@ class ConsultarLeccion(_CasoDeUso):
 class ConsultarObjeto(_CasoDeUso):
     """Un objeto (presentación, lectura, laboratorio o actividad) con su lección de contexto."""
 
-    def ejecutar(self, curso_ref: str, objeto_ref: str, rol: str = "estudiante", fuente_nombre: str | None = None) -> dict:
-        vista, _ = self._vista(fuente_nombre, curso_ref, rol)
+    def ejecutar(self, curso_ref: str, objeto_ref: str, rol: str = "estudiante", fuente_nombre: str | None = None,
+                 version: str | None = None) -> dict:
+        vista, _ = self._vista(fuente_nombre, curso_ref, rol, version)
         hallado = cur.localizar(vista, objeto_ref=objeto_ref)
         leccion = dict(hallado["leccion"])
         leccion.pop("objetos", None)
@@ -123,6 +129,73 @@ class AbrirMedio(_CasoDeUso):
     def ejecutar(self, curso_ref: str, media_ref: str, ruta: str | None = None, rango: str | None = None,
                  metodo: str = "GET", fuente_nombre: str | None = None) -> Bytes:
         return self.s.fuente(fuente_nombre, curso_ref).medio(curso_ref, media_ref, ruta, rango, metodo)
+
+
+class EstadoFuente(_CasoDeUso):
+    """¿Hay contenido? Nunca lanza: la ausencia de la biblioteca es un estado normal del aula."""
+
+    def ejecutar(self, fuente_nombre: str | None = None) -> dict:
+        fuente = self.s.fuente(fuente_nombre)
+        return {"fuente": fuente.nombre, **fuente.estado()}
+
+
+class EvaluarRespuesta(_CasoDeUso):
+    """§5 del mapeo: la clave se compara DONDE VIVE. El aula valida la forma de la respuesta
+    contra la pregunta tal como la vio el alumno, la reenvía con la versión del curso y
+    devuelve el veredicto traducido. No escribe: el intento y la nota son de MOD-010 (Q-48)."""
+
+    LOTE_MAXIMO = 200
+
+    def ejecutar(self, curso_ref: str, datos: dict, fuente_nombre: str | None = None) -> dict:
+        version = str(datos.get("version") or "")
+        items = datos.get("items")
+        if items is None:
+            items = [{"objeto_ref": datos.get("objeto_ref"), "pregunta_ref": datos.get("pregunta_ref"), "respuesta": datos.get("respuesta")}]
+            lote = False
+        else:
+            lote = True
+        if not isinstance(items, list) or not items:
+            raise DatosInvalidos("`items` debe ser una lista con al menos una respuesta.")
+        if len(items) > self.LOTE_MAXIMO:
+            raise DatosInvalidos(f"Un lote admite hasta {self.LOTE_MAXIMO} respuestas.", items=len(items))
+
+        fuente = self.s.fuente(fuente_nombre, curso_ref)
+        # La pregunta se valida contra la versión con la que se respondió (si se indica) y con el
+        # perfil del alumno: así ninguna clave transita por aquí ni por accidente.
+        vista, _ = self._vista(fuente.nombre, curso_ref, "estudiante", version or None)
+        version = version or str(vista.get("version") or "")
+        if not version:
+            raise DatosInvalidos("No se pudo determinar la versión del curso; `/v2/evaluate` la exige.")
+        ref_real = str(vista.get("curso_ref") or curso_ref)
+
+        preparados = []
+        for item in items:
+            if not isinstance(item, dict):
+                raise DatosInvalidos("Cada respuesta debe ser un objeto {objeto_ref, pregunta_ref, respuesta}.")
+            objeto_ref = str(item.get("objeto_ref") or "")
+            pregunta_ref = str(item.get("pregunta_ref") or "")
+            if not objeto_ref or not pregunta_ref:
+                raise DatosInvalidos("Cada respuesta exige objeto_ref y pregunta_ref.")
+            objeto = cur.localizar(vista, objeto_ref=objeto_ref)["objeto"]
+            if objeto["fuera_de_alcance"]:
+                raise DatosInvalidos(f"El objeto «{objeto_ref}» es de {objeto['modulo']}: el aula no lo califica.")
+            pregunta = cur.localizar(vista, objeto_ref=objeto_ref, unidad_ref=pregunta_ref)["unidad"]
+            if not pregunta or "pregunta_ref" not in pregunta:
+                raise DatosInvalidos(f"«{pregunta_ref}» no es una pregunta del objeto «{objeto_ref}».", pregunta_ref=pregunta_ref)
+            preparados.append({"objectId": objeto_ref, "questionId": pregunta_ref,
+                               "response": resp.validar_respuesta(pregunta, item.get("respuesta"))})
+
+        if lote:
+            crudos = fuente.evaluar_lote(ref_real, version, preparados)
+            por_pregunta = {str(c.get("questionId") or ""): c for c in crudos}
+            veredictos = [resp.veredicto(por_pregunta.get(p["questionId"], crudos[i] if i < len(crudos) else {}), p["questionId"])
+                          for i, p in enumerate(preparados)]
+            return {"fuente": fuente.nombre, "curso_ref": ref_real, "version": version, "veredictos": veredictos,
+                    "pendientes": sum(1 for v in veredictos if v["pendiente"])}
+        p = preparados[0]
+        crudo = fuente.evaluar(ref_real, version, p["objectId"], p["questionId"], p["response"])
+        return {"fuente": fuente.nombre, "curso_ref": ref_real, "version": version, "objeto_ref": p["objectId"],
+                **resp.veredicto(crudo, p["questionId"])}
 
 
 def _ficha(vista: dict) -> dict:

@@ -31,11 +31,23 @@ class FuenteDeCursos(Protocol):
     def cursos(self) -> list[dict]:
         """Manifiestos o fichas (contrato 1) de los cursos ofrecidos, con la política de la escuela ya aplicada."""
 
-    def curso(self, curso_ref: str) -> dict:
-        """El manifiesto crudo (schemaVersion 1.0) o el árbol del contrato 1. CursoNoEncontrado si no existe."""
+    def curso(self, curso_ref: str, *, version: str | None = None, rol: str = "estudiante") -> dict:
+        """El curso crudo (esquema 1.0 recortado por la biblioteca, o el árbol del contrato 1).
+        `version` pide una versión archivada (reconstruir un intento viejo); sin ella, la instalada.
+        `rol` decide el perfil que se pide (`teacher` trae `teacherNotes`). CursoNoEncontrado si no existe."""
 
     def medio(self, curso_ref: str, media_ref: str, ruta: str | None, rango: str | None, metodo: str) -> Bytes:
         """Los bytes de un medio del curso (o de un archivo interno de una simulación)."""
+
+    def evaluar(self, curso_ref: str, version: str, objeto_ref: str, pregunta_ref: str, respuesta: dict) -> dict:
+        """Compara la respuesta con la clave DONDE VIVE la clave y devuelve el veredicto crudo
+        (`score`, `maxScore`, `correct`, `requiresManualGrading`, `feedback`). Siempre con `version`."""
+
+    def evaluar_lote(self, curso_ref: str, version: str, items: list[dict]) -> list[dict]:
+        """Varias respuestas de una vez (hasta 200 por llamada); cada item lleva objectId, questionId y response."""
+
+    def estado(self) -> dict:
+        """Nunca lanza: {disponible, motivo, sugerencia, huella, cursos_instalados…}."""
 
 
 # ------------------------------------------------------------------ identidad (MOD-001 / MOD-002)

@@ -4,8 +4,10 @@ from . import views
 
 urlpatterns = [
     # --- el curso, en vivo (sin escribir nada) ---
+    path("fuente/", views.FuenteView.as_view(), name="aula-fuente"),
     path("cursos/", views.CursosView.as_view(), name="aula-cursos"),
     path("cursos/<str:curso_ref>/", views.CursoView.as_view(), name="aula-curso"),
+    path("cursos/<str:curso_ref>/evaluar/", views.EvaluarView.as_view(), name="aula-evaluar"),
     path("cursos/<str:curso_ref>/lecciones/<str:leccion_ref>/", views.LeccionView.as_view(), name="aula-leccion"),
     path("cursos/<str:curso_ref>/objetos/<str:objeto_ref>/", views.ObjetoView.as_view(), name="aula-objeto"),
     path("cursos/<str:curso_ref>/medios/<str:media_ref>/", views.MedioView.as_view(), name="aula-medio"),

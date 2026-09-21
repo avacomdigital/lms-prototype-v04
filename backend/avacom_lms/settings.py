@@ -85,6 +85,10 @@ AVACOM_LMS_EXIGIR_SESION = os.environ.get("AVACOM_LMS_EXIGIR_SESION", "0") == "1
 # Ruta forzada de la nota de enlace. Permite probar la integración con un host
 # de pruebas sin instalar la biblioteca (ver tools/host_biblioteca_pruebas.py).
 AVACOM_CONTENIDO_ENLACE = os.environ.get("AVACOM_CONTENIDO_ENLACE") or None
+# Ruta forzada de `link.json`, la nota de enlace de la API de Contenido v2 (apiPort +
+# token). Por defecto vive junto a enlace.json; el host de pruebas v2 la escribe donde
+# se le pida (ver tools/host_contenido_v2_pruebas.py).
+AVACOM_CONTENIDO_ENLACE_V2 = os.environ.get("AVACOM_CONTENIDO_ENLACE_V2") or None
 # Tiempo de espera hacia la biblioteca. Es loopback: si no contesta en tres
 # segundos, no va a contestar, y esperar más congela la pantalla del profesor.
 AVACOM_CONTENIDO_TIEMPO_ESPERA_SEG = float(os.environ.get("AVACOM_CONTENIDO_TIEMPO_ESPERA_SEG", "3"))
