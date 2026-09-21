@@ -188,6 +188,19 @@ public sealed class AulaContenidoView : ContentView
                 }
                 return pila;
             }
+            case "formula":
+            {
+                // Sin motor matemático en la tableta: el backend entrega una lectura del LaTeX («1/3 × 2») en `texto`.
+                var pila = new VerticalStackLayout { Spacing = 6 };
+                pila.Add(new Border
+                {
+                    BackgroundColor = Ds.Lienzo, StrokeThickness = 0, Padding = new Thickness(24, 14), HorizontalOptions = LayoutOptions.Center,
+                    StrokeShape = new RoundRectangle { CornerRadius = Ds.RadioInterno },
+                    Content = new Label { Text = b.Texto, FontSize = 28 * Escala, FontAttributes = FontAttributes.Italic, TextColor = Ds.Tinta, HorizontalTextAlignment = TextAlignment.Center },
+                });
+                if (!string.IsNullOrWhiteSpace(b.Pie)) pila.Add(Ds.Secundario(b.Pie!, 15 * Escala));
+                return pila;
+            }
             case "imagen":
                 return Imagen(b);
             case "video":
