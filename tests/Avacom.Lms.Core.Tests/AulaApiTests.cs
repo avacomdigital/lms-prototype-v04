@@ -145,9 +145,30 @@ public sealed class AulaApiTests
     [Fact]
     public void LasUrlDeMediosSeResuelvenContraLaBaseDelBackend()
     {
-        var api = new AulaApi(new HttpClient(new ManejadorFalso((_, _) => Task.FromResult(Respuesta(HttpStatusCode.OK, "{}")))), new Uri("http://192.168.0.55:8000/"));
+        var api = new AulaApi(new HttpClient(new ManejadorFalso((_, _) => Task.FromResult(Respuesta(HttpStatusCode.OK, "{}")))), new Uri("http://192.168.0.55:8000/"), "ejemplo");
         Assert.Equal("http://192.168.0.55:8000/api/aula/cursos/x/medios/img/?fuente=ejemplo", api.Absoluta("/api/aula/cursos/x/medios/img/?fuente=ejemplo").AbsoluteUri);
         Assert.Equal("ejemplo", api.Fuente);
+    }
+
+    [Fact]
+    public async Task SinFuenteElParametroNoViajaYElBackendDecide()
+    {
+        var urls = new List<string>();
+        var manejador = new ManejadorFalso((req, _) =>
+        {
+            urls.Add(req.RequestUri!.AbsoluteUri);
+            return Task.FromResult(Respuesta(HttpStatusCode.OK, VistaCursoJson));
+        });
+        var sinFuente = new AulaApi(new HttpClient(manejador), new Uri("http://127.0.0.1:8000/"));
+        Assert.Null(sinFuente.Fuente);
+        await sinFuente.CursosAsync();
+        await sinFuente.CursoAsync("c", docente: true);
+        Assert.Equal("http://127.0.0.1:8000/api/aula/cursos/", urls[0]);
+        Assert.Equal("http://127.0.0.1:8000/api/aula/cursos/c/?rol=docente", urls[1]);
+
+        var biblioteca = new AulaApi(new HttpClient(manejador), new Uri("http://127.0.0.1:8000/"), "biblioteca");
+        await biblioteca.CursoAsync("c", docente: false);
+        Assert.Equal("http://127.0.0.1:8000/api/aula/cursos/c/?rol=estudiante&fuente=biblioteca", urls[2]);
     }
 
     // ------------------------------------------------------------------ ayudas

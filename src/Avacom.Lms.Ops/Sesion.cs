@@ -14,15 +14,24 @@ public static class Sesion
     private static IAulaApi? _aula;
     private static Uri? _baseActual;
     private static Uri? _baseAula;
+    private static string? _fuenteAula;
 
     public const string DireccionPorDefecto = "http://127.0.0.1:8000";
 
+    public const string FuenteBiblioteca = "biblioteca";
+    public const string FuenteEjemplo = "ejemplo";
+
     /// <summary>
-    /// Fuente de cursos de MOD-007. Mientras AVACOM Biblioteca no publique el manifiesto de
-    /// curso (Q-44/Q-45) el aula trabaja con el manifiesto de ejemplo. Cambiar a
-    /// «biblioteca» es el único paso cuando llegue; nada más del cliente depende de esto.
+    /// Fuente de cursos de MOD-007. Por defecto <c>biblioteca</c>: el backend habla con la API de
+    /// Contenido v2 de AVACOM Biblioteca. Cuando la biblioteca no está en el equipo, «Clase de hoy»
+    /// ofrece pasar al manifiesto de ejemplo con un toque (y volver tocando el chip de la fuente).
+    /// Se guarda en Preferences; nada más del cliente depende de esto.
     /// </summary>
-    public const string FuenteAula = "ejemplo";
+    public static string FuenteAula
+    {
+        get => Preferences.Default.Get("ops_fuente_aula", FuenteBiblioteca) is FuenteEjemplo ? FuenteEjemplo : FuenteBiblioteca;
+        set => Preferences.Default.Set("ops_fuente_aula", value == FuenteEjemplo ? FuenteEjemplo : FuenteBiblioteca);
+    }
 
     public static Uri BaseUri
     {
@@ -49,16 +58,18 @@ public static class Sesion
         }
     }
 
-    /// <summary>El cliente de <c>/api/aula/</c> (MOD-007), una instancia por dirección.</summary>
+    /// <summary>El cliente de <c>/api/aula/</c> (MOD-007), una instancia por dirección y fuente.</summary>
     public static IAulaApi Aula
     {
         get
         {
             var actual = BaseUri;
-            if (_aula is null || _baseAula != actual)
+            var fuente = FuenteAula;
+            if (_aula is null || _baseAula != actual || _fuenteAula != fuente)
             {
-                _aula = new AulaApi(Http, actual, FuenteAula);
+                _aula = new AulaApi(Http, actual, fuente);
                 _baseAula = actual;
+                _fuenteAula = fuente;
             }
             return _aula;
         }

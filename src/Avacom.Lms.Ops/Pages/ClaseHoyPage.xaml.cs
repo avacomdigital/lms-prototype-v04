@@ -6,14 +6,25 @@ namespace Avacom.Lms.Ops.Pages;
 
 /// <summary>
 /// P1 · Materias de hoy. Un hexágono por asignatura y, debajo, sus cursos como tarjetas.
-/// Con la fuente de ejemplo hay una sola materia: Ciencias naturales. Todo el journey de
-/// MOD-007 empieza aquí; nada se escribe en esta pantalla.
+/// Las materias las entrega AVACOM Biblioteca (API de Contenido v2) a través del backend; si la
+/// biblioteca no está en el equipo, se ofrece el curso de ejemplo («Ciencias naturales») con un
+/// toque, y el chip de la fuente permite volver. Todo el journey de MOD-007 empieza aquí; nada se
+/// escribe en esta pantalla.
 /// </summary>
 public partial class ClaseHoyPage : ContentPage
 {
     private bool _cargando;
 
-    public ClaseHoyPage() => InitializeComponent();
+    public ClaseHoyPage()
+    {
+        InitializeComponent();
+        // Tocar el chip alterna la fuente sin teclado: de ejemplo a biblioteca y viceversa.
+        Ds.Tocable(FuenteChip, async () =>
+        {
+            Sesion.FuenteAula = Sesion.FuenteAula == Sesion.FuenteEjemplo ? Sesion.FuenteBiblioteca : Sesion.FuenteEjemplo;
+            await CargarAsync();
+        });
+    }
 
     protected override async void OnAppearing()
     {
@@ -43,11 +54,26 @@ public partial class ClaseHoyPage : ContentPage
             var catalogo = await aula.CursosAsync();
             if (catalogo is null)
             {
-                PintarFuente(false, aula.UltimoMotivo);
                 var error = aula.UltimoError;
+                var sinBiblioteca = aula.Fuente == Sesion.FuenteBiblioteca && error?.Codigo == "fuente_no_disponible";
+                PintarFuente(false, sinBiblioteca ? "sin_biblioteca" : aula.UltimoMotivo);
                 var pila = new VerticalStackLayout { Spacing = 12 };
-                pila.Add(Ds.Alerta_("No se pudieron leer las materias", string.Join(" ", new[] { error?.Detalle, error?.Sugerencia }.Where(x => !string.IsNullOrWhiteSpace(x))), Ds.PeligroSuave, Color.FromArgb("#8A1C1F")));
-                pila.Add(Ds.Boton("Reintentar", Ds.Rango.Secondary, async (_, _) => await CargarAsync(), 64, 220));
+                pila.Add(Ds.Alerta_(sinBiblioteca ? "AVACOM Biblioteca no está encendida en este equipo" : "No se pudieron leer las materias",
+                    string.Join(" ", new[] { error?.Detalle, error?.Sugerencia }.Where(x => !string.IsNullOrWhiteSpace(x))),
+                    sinBiblioteca ? Ds.AlertaSuave : Ds.PeligroSuave, sinBiblioteca ? Color.FromArgb("#6B5800") : Color.FromArgb("#8A1C1F")));
+                var botones = new HorizontalStackLayout { Spacing = 16 };
+                botones.Add(Ds.Boton("Reintentar", Ds.Rango.Secondary, async (_, _) => await CargarAsync(), 64, 220));
+                if (sinBiblioteca)
+                {
+                    // Un toque, sin teclado: seguir con el manifiesto de ejemplo hasta que la biblioteca esté.
+                    // Un solo Primary por pantalla: si ya hay «Continuar la clase», este baja a Secondary.
+                    botones.Add(Ds.Boton("Usar el curso de ejemplo", AvisoHost.Count == 0 ? Ds.Rango.Primary : Ds.Rango.Secondary, async (_, _) =>
+                    {
+                        Sesion.FuenteAula = Sesion.FuenteEjemplo;
+                        await CargarAsync();
+                    }, 64, 300));
+                }
+                pila.Add(botones);
                 AvisoHost.Add(pila);
                 return;
             }
@@ -129,11 +155,13 @@ public partial class ClaseHoyPage : ContentPage
 
     private void PintarFuente(bool ok, string? detalle)
     {
-        FuenteChip.BackgroundColor = ok ? (detalle == "ejemplo" ? Ds.AlertaSuave : Ds.ExitoSuave) : Ds.PeligroSuave;
-        FuenteChipLabel.TextColor = ok ? (detalle == "ejemplo" ? Color.FromArgb("#6B5800") : Ds.Exito) : Ds.Peligro;
+        var ejemplo = detalle == Sesion.FuenteEjemplo;
+        var sinBiblioteca = detalle == "sin_biblioteca";
+        FuenteChip.BackgroundColor = ok ? (ejemplo ? Ds.AlertaSuave : Ds.ExitoSuave) : (sinBiblioteca ? Ds.AlertaSuave : Ds.PeligroSuave);
+        FuenteChipLabel.TextColor = ok ? (ejemplo ? Color.FromArgb("#6B5800") : Ds.Exito) : (sinBiblioteca ? Color.FromArgb("#6B5800") : Ds.Peligro);
         FuenteChipLabel.Text = ok
-            ? (detalle == "ejemplo" ? "●  Curso de ejemplo · Biblioteca pendiente" : "●  Biblioteca conectada")
-            : "●  Sin conexión con el aula";
+            ? (ejemplo ? "●  Curso de ejemplo · tocar para usar Biblioteca" : "●  Biblioteca conectada")
+            : (sinBiblioteca ? "●  Biblioteca apagada · tocar para usar el ejemplo" : "●  Sin conexión con el aula");
     }
 
     private static Task AbrirAsync(FichaCurso curso) =>

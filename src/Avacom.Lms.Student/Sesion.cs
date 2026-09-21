@@ -15,9 +15,6 @@ public static class Sesion
     private static Uri? _baseActual;
     private static Uri? _baseAula;
 
-    /// <summary>Misma fuente que OPS (ver <c>Avacom.Lms.Ops.Sesion.FuenteAula</c>): «ejemplo» hasta que Biblioteca publique el manifiesto.</summary>
-    public const string FuenteAula = "ejemplo";
-
     public static string Nombre => Preferences.Default.Get("student_name", ConnectionOptions.Default.StudentName);
     public static string PersonaId => Identidad.SlugDe(Nombre);
 
@@ -45,6 +42,12 @@ public static class Sesion
         }
     }
 
+    /// <summary>
+    /// El cliente de <c>/api/aula/</c>. La tableta NO elige fuente de cursos: sigue la clase que abrió el
+    /// profesor y el backend resuelve de dónde sale el curso (la biblioteca por la API de Contenido v2,
+    /// o el manifiesto de ejemplo cuando la referencia es la suya). Las URL de los medios ya llegan con
+    /// su fuente desde el backend.
+    /// </summary>
     public static IAulaApi Aula
     {
         get
@@ -52,7 +55,7 @@ public static class Sesion
             var actual = BaseUri;
             if (_aula is null || _baseAula != actual)
             {
-                _aula = new AulaApi(Http, actual, FuenteAula);
+                _aula = new AulaApi(Http, actual);
                 _baseAula = actual;
             }
             return _aula;

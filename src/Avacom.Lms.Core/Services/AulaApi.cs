@@ -19,7 +19,14 @@ namespace Avacom.Lms.Core.Services;
 public interface IAulaApi
 {
     Uri BaseUri { get; }
-    string Fuente { get; }
+
+    /// <summary>
+    /// Fuente de cursos que se pide al backend (<c>?fuente=biblioteca|ejemplo</c>). Vacía o nula, el
+    /// parámetro no viaja y el backend decide: la biblioteca (API de Contenido v2) por defecto, o el
+    /// manifiesto de ejemplo cuando la referencia es la suya. Así una tableta sigue cualquier clase sin
+    /// saber de dónde salió el curso.
+    /// </summary>
+    string? Fuente { get; }
     string? UltimoMotivo { get; }
     ErrorAula? UltimoError { get; }
     Uri Absoluta(string rutaRelativa);
@@ -44,18 +51,19 @@ public interface IAulaApi
     Task<bool> ConfirmarEntregaAsync(string sesionId, string distribucionId, string participanteId, CancellationToken ct = default);
 }
 
-public sealed class AulaApi(HttpClient http, Uri baseUri, string fuente = "ejemplo") : IAulaApi
+public sealed class AulaApi(HttpClient http, Uri baseUri, string? fuente = null) : IAulaApi
 {
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
 
     public Uri BaseUri { get; } = baseUri;
-    public string Fuente { get; } = fuente;
+    public string? Fuente { get; } = string.IsNullOrWhiteSpace(fuente) ? null : fuente;
     public string? UltimoMotivo { get; private set; }
     public ErrorAula? UltimoError { get; private set; }
 
     public Uri Absoluta(string rutaRelativa) => new(BaseUri, rutaRelativa.TrimStart('/'));
 
-    private string ConFuente(string ruta) => ruta.Contains('?') ? $"{ruta}&fuente={Fuente}" : $"{ruta}?fuente={Fuente}";
+    private string ConFuente(string ruta) =>
+        Fuente is null ? ruta : ruta.Contains('?') ? $"{ruta}&fuente={Uri.EscapeDataString(Fuente)}" : $"{ruta}?fuente={Uri.EscapeDataString(Fuente)}";
 
     // ------------------------------------------------------------------ curso
 
