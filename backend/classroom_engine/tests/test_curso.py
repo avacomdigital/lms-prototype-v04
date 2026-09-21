@@ -276,7 +276,9 @@ class NormalizadorTests(TestCase):
         self.assertEqual([g["nombre"] for g in grupos], ["Ciencias naturales", "Matemáticas"])
         self.assertEqual(len(grupos[1]["cursos"]), 2)
         self.assertEqual(set(catalogos.TIPOS_OBJETO), {"lecture", "explanation", "simulation_lab", "activity", "exam"})
-        self.assertEqual(set(catalogos.TIPOS_BLOQUE), {"heading", "text", "list", "image", "video", "audio", "pdf"})
+        self.assertEqual(set(catalogos.TIPOS_BLOQUE), {"heading", "text", "list", "formula", "image", "video", "audio", "pdf"})
+        formula = cur._bloque({"type": "formula", "latex": "\\frac{1}{3} \\times 2", "display": True}, {}, lambda m, r: "")
+        self.assertEqual((formula["componente"], formula["latex"], formula["texto"], formula["en_bloque"]), ("formula", "\\frac{1}{3} \\times 2", "1/3 × 2", True))
         self.assertEqual(len(catalogos.TIPOS_PREGUNTA), 6)
 
     def test_sin_claves_limpia_camel_y_espanol(self):
@@ -330,6 +332,8 @@ class ConLaApiDeContenidoV2Tests(TestCase):
         self.host = HostContenidoV2Pruebas(
             self.ruta_enlace, {CURSO: self.manifiesto}, archivados={(CURSO, "0.9.0"): viejo},
             medios={"img-particles": ("image/png", PNG_1x1), "vid-changes": ("video/mp4", bytes(range(256)) * 400),
+                    "vid-changes/@captions": ("text/vtt; charset=utf-8", b"WEBVTT\n\n1\n00:00:00.000 --> 00:00:30.000\nEl hielo es solido."),
+                    "aud-summary/@transcript": ("text/plain; charset=utf-8", b"Los tres estados de la materia."),
                     "sim-heating-curve/index.html": ("text/html; charset=utf-8", b"<html><body>curva</body></html>")},
         ).iniciar()
         self._ajuste = override_settings(AVACOM_CONTENIDO_ENLACE_V2=self.ruta_enlace)
@@ -379,14 +383,31 @@ class ConLaApiDeContenidoV2Tests(TestCase):
         self.assertEqual((ficha["curso_ref"], ficha["version"], ficha["lecciones"]), (CURSO, "1.0.0", 3))
         self.assertEqual(self.host.peticiones, ["GET /v2/courses", f"GET /v2/courses/{CURSO}"])
 
-    def test_una_version_archivada_se_pide_con_version(self):
+    def test_el_curso_se_arma_con_el_esquema_y_cada_leccion_completa(self):
+        v = self.api.get(f"/api/aula/cursos/{CURSO}/?fuente=biblioteca").json()
+        # Esquema + las dos lecciones con objetos en modo clase; la de evaluación queda vacía y no se pide.
+        self.assertEqual(self.host.peticiones, [f"GET /v2/courses/{CURSO}", f"GET /v2/courses/{CURSO}/lessons/l1-three-states",
+                                                f"GET /v2/courses/{CURSO}/lessons/l2-changes-of-state"])
+        self.assertEqual([len(l["objetos"]) for l in v["lecciones"]], [4, 3, 0])
+        self.assertEqual(v["lecciones"][0]["objetos"][0]["total_unidades"], 3)          # láminas reales, no el resumen
+        # Los medios del esquema no traen rutas, sólo si hay subtítulos o transcripción: las URL salen igual.
+        video = v["lecciones"][0]["objetos"][0]["laminas"][2]["bloques"][0]
+        self.assertTrue(video["subtitulos_url"].endswith("/medios/vid-changes/subtitulos?fuente=biblioteca"))
+        # `semilla` viaja como `seed` para que toda la clase vea las opciones en el mismo orden.
+        con_semilla = self.api.get(f"/api/aula/cursos/{CURSO}/objetos/l1-activity/?fuente=biblioteca&semilla=aula-1").json()
+        self.assertEqual(self.host.consultas[-1].get("seed"), "aula-1")
+        otra_vez = self.api.get(f"/api/aula/cursos/{CURSO}/objetos/l1-activity/?fuente=biblioteca&semilla=aula-1").json()
+        self.assertEqual([o["opcion_ref"] for o in con_semilla["objeto"]["preguntas"][0]["opciones"]],
+                         [o["opcion_ref"] for o in otra_vez["objeto"]["preguntas"][0]["opciones"]])
+
+    def test_la_api_solo_sirve_la_version_instalada(self):
+        # La API no entrega el esquema de una versión archivada: `version` sólo se admite en evaluate y grading-guide.
         r = self.api.get(f"/api/aula/cursos/{CURSO}/?fuente=biblioteca&version=0.9.0")
-        self.assertEqual((r.status_code, r.json()["version"], r.json()["titulo"]), (200, "0.9.0", "Estados de la materia (borrador)"))
-        self.assertEqual(self.host.consultas[-1]["version"], "0.9.0")
-        r = self.api.get(f"/api/aula/cursos/{CURSO}/objetos/l1-lecture/?fuente=biblioteca&version=0.9.0")
-        self.assertEqual((r.status_code, r.json()["curso"]["version"]), (200, "0.9.0"))
+        self.assertEqual((r.status_code, r.json()["codigo"], r.json()["codigo_biblioteca"]), (404, "curso_no_encontrado", "version_not_available"))
+        r = self.api.get(f"/api/aula/cursos/{CURSO}/?fuente=biblioteca&version=1.0.0")
+        self.assertEqual((r.status_code, r.json()["version"]), (200, "1.0.0"))
         r = self.api.get(f"/api/aula/cursos/{CURSO}/?fuente=biblioteca&version=3.0.0")
-        self.assertEqual((r.status_code, r.json()["codigo"], r.json()["codigo_biblioteca"]), (404, "curso_no_encontrado", "course_not_found"))
+        self.assertEqual(r.status_code, 404)
         # Sin `version` la clase en vivo ve la versión instalada.
         self.assertEqual(self.api.get(f"/api/aula/cursos/{CURSO}/?fuente=biblioteca").json()["version"], "1.0.0")
 
@@ -426,12 +447,23 @@ class ConLaApiDeContenidoV2Tests(TestCase):
         r = self.api.get(f"/api/aula/cursos/{CURSO}/medios/img-particles/?fuente=biblioteca")
         self.assertEqual((r.status_code, r["Content-Type"]), (200, "image/png"))
         self.assertEqual(b"".join(r.streaming_content)[:8], b"\x89PNG\r\n\x1a\n")
-        self.assertEqual(self.host.peticiones[-1], f"GET /v2/courses/{CURSO}/media/img-particles")
+        # Una sesión de medios de un minuto sólo para ese medio, y los bytes del servidor de medios (sin token).
+        self.assertEqual(self.host.peticiones[-2:][0], "POST /v2/media-sessions")
+        self.assertEqual(self.host.cuerpos[-1], {"courseId": CURSO, "mediaIds": ["img-particles"], "ttlSec": 60})
+        self.assertTrue(self.host.peticiones[-1].startswith("MEDIA GET /s/") and self.host.peticiones[-1].endswith("/img-particles"))
         r = self.api.get(f"/api/aula/cursos/{CURSO}/medios/vid-changes/?fuente=biblioteca", HTTP_RANGE="bytes=0-9")
         self.assertEqual((r.status_code, r["Content-Range"]), (206, "bytes 0-9/102400"))
+        r = self.api.get(f"/api/aula/cursos/{CURSO}/medios/vid-changes/subtitulos?fuente=biblioteca")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r["Content-Type"].startswith("text/vtt"))
+        self.assertTrue(self.host.peticiones[-1].endswith("/vid-changes/@captions"))
+        r = self.api.get(f"/api/aula/cursos/{CURSO}/medios/aud-summary/transcripcion?fuente=biblioteca")
+        self.assertEqual((r.status_code, b"".join(r.streaming_content)), (200, b"Los tres estados de la materia."))
+        r = self.api.get(f"/api/aula/cursos/{CURSO}/medios/img-particles/subtitulos?fuente=biblioteca")
+        self.assertEqual(r.status_code, 404)        # una imagen no tiene subtítulos
         r = self.api.get(f"/api/aula/cursos/{CURSO}/medios/sim-heating-curve/index.html?fuente=biblioteca")
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(self.host.peticiones[-1], f"GET /v2/courses/{CURSO}/media/sim-heating-curve/index.html")
+        self.assertTrue(self.host.peticiones[-1].endswith("/sim-heating-curve/index.html"))
         r = self.api.get(f"/api/aula/cursos/{CURSO}/medios/no-existe/?fuente=biblioteca")
         self.assertEqual((r.status_code, r.json()["codigo"]), (404, "referencia_no_encontrada"))
 
@@ -487,5 +519,8 @@ class ConLaApiDeContenidoV2Tests(TestCase):
         self.assertEqual([x["pregunta_ref"] for x in v["veredictos"]], ["l1-act-q1", "l1-act-q6"])
         self.assertEqual(self.host.peticiones[-1], "POST /v2/evaluate/batch")
         self.assertTrue(all(i["version"] == "0.9.0" for i in self.host.cuerpos[-1]["items"]))
+        # Con una versión archivada el aula no conoce la estructura: la forma la valida la biblioteca (422 → 400).
+        r = self._evaluar({"version": "0.9.0", "objeto_ref": "l1-activity", "pregunta_ref": "l1-act-q1", "respuesta": {"selectedIndex": 1}})
+        self.assertEqual((r.status_code, r.json()["codigo"], r.json()["codigo_biblioteca"]), (400, "datos_invalidos", "invalid_response"))
         r = self._evaluar({"items": [{"objeto_ref": "l1-activity", "pregunta_ref": "l1-act-q1", "respuesta": {"selectedOptionIds": ["a"]}}] * 201})
         self.assertEqual(r.status_code, 400)

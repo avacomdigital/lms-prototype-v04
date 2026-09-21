@@ -47,7 +47,7 @@ class FuenteEjemplo:
     def cursos(self) -> list[dict]:
         return [self._leer()]
 
-    def curso(self, curso_ref: str, *, version: str | None = None, rol: str = "estudiante") -> dict:
+    def curso(self, curso_ref: str, *, version: str | None = None, rol: str = "estudiante", semilla: str | None = None) -> dict:
         """El manifiesto completo (el normalizador quita las claves y las notas según el rol).
         Sólo existe una versión: pedir otra es no encontrarla, igual que en la biblioteca."""
         manifiesto = self._leer()

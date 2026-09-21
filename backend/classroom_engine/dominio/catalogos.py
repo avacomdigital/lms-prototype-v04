@@ -30,6 +30,7 @@ TIPOS_BLOQUE: dict[str, str] = {
     "heading": "titulo",
     "text": "texto",
     "list": "lista",
+    "formula": "formula",                 # LaTeX (`latex`, `display`); el cliente la pinta como texto matemático
     "image": "imagen",
     "video": "video",
     "audio": "audio",

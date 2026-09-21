@@ -23,6 +23,7 @@ from ..dominio import sesion as dom
 from ..dominio.errores import (
     ActividadesAbiertas,
     CodigoInvalido,
+    CursoNoEncontrado,
     DatosInvalidos,
     GrupoConSesionActiva,
     NoEncontrado,
@@ -56,11 +57,12 @@ class _CasoDeUso:
         self.s = servicios
 
     # ------------------------------------------------------------ el curso, en vivo
-    def _vista(self, fuente_nombre: str | None, curso_ref: str, rol: str, version: str | None = None) -> tuple[dict, str]:
-        """`version` sólo se pide para reconstruir algo hecho con una versión archivada (un
-        intento viejo); la clase en vivo siempre ve la versión instalada (artículo 14.3)."""
+    def _vista(self, fuente_nombre: str | None, curso_ref: str, rol: str, version: str | None = None,
+               semilla: str | None = None) -> tuple[dict, str]:
+        """`version` exige esa versión del curso (la clase en vivo siempre ve la instalada, artículo
+        14.3). `semilla` fija el barajado de las opciones: la misma para toda la clase."""
         fuente = self.s.fuente(fuente_nombre, curso_ref)
-        crudo = fuente.curso(curso_ref, version=version or None, rol=rol if rol in cat.ROLES else "estudiante")
+        crudo = fuente.curso(curso_ref, version=version or None, rol=rol if rol in cat.ROLES else "estudiante", semilla=semilla or None)
         # Las URL de los medios llevan la referencia REAL del curso, aunque se haya pedido por un alias.
         ref_real = str(crudo.get("id") or crudo.get("curso_ref") or curso_ref)
         vista = cur.normalizar(
@@ -96,8 +98,9 @@ class ConsultarCursos(_CasoDeUso):
 class ConsultarCurso(_CasoDeUso):
     """La vista de aula completa de un curso, para el rol indicado. No escribe."""
 
-    def ejecutar(self, curso_ref: str, rol: str = "estudiante", fuente_nombre: str | None = None, version: str | None = None) -> dict:
-        vista, _ = self._vista(fuente_nombre, curso_ref, rol, version)
+    def ejecutar(self, curso_ref: str, rol: str = "estudiante", fuente_nombre: str | None = None, version: str | None = None,
+                 semilla: str | None = None) -> dict:
+        vista, _ = self._vista(fuente_nombre, curso_ref, rol, version, semilla)
         return vista
 
 
@@ -105,8 +108,8 @@ class ConsultarLeccion(_CasoDeUso):
     """Una lección con sus objetos: la carga que baja una tableta al seguir la clase."""
 
     def ejecutar(self, curso_ref: str, leccion_ref: str, rol: str = "estudiante", fuente_nombre: str | None = None,
-                 version: str | None = None) -> dict:
-        vista, _ = self._vista(fuente_nombre, curso_ref, rol, version)
+                 version: str | None = None, semilla: str | None = None) -> dict:
+        vista, _ = self._vista(fuente_nombre, curso_ref, rol, version, semilla)
         hallado = cur.localizar(vista, leccion_ref=leccion_ref)
         return {"curso": _ficha(vista), "leccion": hallado["leccion"]}
 
@@ -115,8 +118,8 @@ class ConsultarObjeto(_CasoDeUso):
     """Un objeto (presentación, lectura, laboratorio o actividad) con su lección de contexto."""
 
     def ejecutar(self, curso_ref: str, objeto_ref: str, rol: str = "estudiante", fuente_nombre: str | None = None,
-                 version: str | None = None) -> dict:
-        vista, _ = self._vista(fuente_nombre, curso_ref, rol, version)
+                 version: str | None = None, semilla: str | None = None) -> dict:
+        vista, _ = self._vista(fuente_nombre, curso_ref, rol, version, semilla)
         hallado = cur.localizar(vista, objeto_ref=objeto_ref)
         leccion = dict(hallado["leccion"])
         leccion.pop("objetos", None)
@@ -160,13 +163,21 @@ class EvaluarRespuesta(_CasoDeUso):
             raise DatosInvalidos(f"Un lote admite hasta {self.LOTE_MAXIMO} respuestas.", items=len(items))
 
         fuente = self.s.fuente(fuente_nombre, curso_ref)
-        # La pregunta se valida contra la versión con la que se respondió (si se indica) y con el
-        # perfil del alumno: así ninguna clave transita por aquí ni por accidente.
-        vista, _ = self._vista(fuente.nombre, curso_ref, "estudiante", version or None)
-        version = version or str(vista.get("version") or "")
+        # La pregunta se valida contra el curso tal como lo vio el alumno y con su perfil: así ninguna
+        # clave transita por aquí ni por accidente. La biblioteca sólo sirve el esquema de la versión
+        # instalada; si el intento es de una versión archivada, la forma la valida ella (conserva las claves).
+        vista: dict | None
+        try:
+            vista, _ = self._vista(fuente.nombre, curso_ref, "estudiante", version or None)
+        except CursoNoEncontrado as error:
+            if not version or error.extra.get("codigo_biblioteca") != "version_not_available":
+                raise
+            vista = None
+        if vista is not None:
+            version = version or str(vista.get("version") or "")
         if not version:
             raise DatosInvalidos("No se pudo determinar la versión del curso; `/v2/evaluate` la exige.")
-        ref_real = str(vista.get("curso_ref") or curso_ref)
+        ref_real = str((vista or {}).get("curso_ref") or curso_ref)
 
         preparados = []
         for item in items:
@@ -176,14 +187,19 @@ class EvaluarRespuesta(_CasoDeUso):
             pregunta_ref = str(item.get("pregunta_ref") or "")
             if not objeto_ref or not pregunta_ref:
                 raise DatosInvalidos("Cada respuesta exige objeto_ref y pregunta_ref.")
+            respuesta = item.get("respuesta")
+            if vista is None:
+                if not isinstance(respuesta, dict) or not respuesta:
+                    raise DatosInvalidos("`respuesta` debe ser un objeto con la forma del tipo de pregunta.", pregunta_ref=pregunta_ref)
+                preparados.append({"objectId": objeto_ref, "questionId": pregunta_ref, "response": dict(respuesta)})
+                continue
             objeto = cur.localizar(vista, objeto_ref=objeto_ref)["objeto"]
             if objeto["fuera_de_alcance"]:
                 raise DatosInvalidos(f"El objeto «{objeto_ref}» es de {objeto['modulo']}: el aula no lo califica.")
             pregunta = cur.localizar(vista, objeto_ref=objeto_ref, unidad_ref=pregunta_ref)["unidad"]
             if not pregunta or "pregunta_ref" not in pregunta:
                 raise DatosInvalidos(f"«{pregunta_ref}» no es una pregunta del objeto «{objeto_ref}».", pregunta_ref=pregunta_ref)
-            preparados.append({"objectId": objeto_ref, "questionId": pregunta_ref,
-                               "response": resp.validar_respuesta(pregunta, item.get("respuesta"))})
+            preparados.append({"objectId": objeto_ref, "questionId": pregunta_ref, "response": resp.validar_respuesta(pregunta, respuesta)})
 
         if lote:
             crudos = fuente.evaluar_lote(ref_real, version, preparados)

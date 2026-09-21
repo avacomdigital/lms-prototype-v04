@@ -47,8 +47,13 @@ class VistaAula(APIView):
 
     @staticmethod
     def _version(request) -> str | None:
-        """`?version=1.1.0` pide una versión archivada del curso (reconstruir un intento viejo). Sin ella, la instalada."""
+        """`?version=1.1.0` exige esa versión del curso; la API sólo sirve la instalada (otra es 404). Sin ella, la instalada."""
         return request.query_params.get("version") or None
+
+    @staticmethod
+    def _semilla(request) -> str | None:
+        """`?semilla=<sesion>` fija el barajado de las opciones: toda la clase ve el mismo orden."""
+        return request.query_params.get("semilla") or None
 
     @staticmethod
     def _rol(request) -> str:
@@ -124,19 +129,20 @@ class CursoView(VistaAula):
     """La vista de aula completa: clasificación, medios, lecciones, objetos, bloques y preguntas sin claves."""
 
     def get(self, request, curso_ref: str):
-        return Response(cu.ConsultarCurso(servicios()).ejecutar(curso_ref, self._rol(request), self._fuente(request), self._version(request)))
+        return Response(cu.ConsultarCurso(servicios()).ejecutar(
+            curso_ref, self._rol(request), self._fuente(request), self._version(request), self._semilla(request)))
 
 
 class LeccionView(VistaAula):
     def get(self, request, curso_ref: str, leccion_ref: str):
         return Response(cu.ConsultarLeccion(servicios()).ejecutar(
-            curso_ref, leccion_ref, self._rol(request), self._fuente(request), self._version(request)))
+            curso_ref, leccion_ref, self._rol(request), self._fuente(request), self._version(request), self._semilla(request)))
 
 
 class ObjetoView(VistaAula):
     def get(self, request, curso_ref: str, objeto_ref: str):
         return Response(cu.ConsultarObjeto(servicios()).ejecutar(
-            curso_ref, objeto_ref, self._rol(request), self._fuente(request), self._version(request)))
+            curso_ref, objeto_ref, self._rol(request), self._fuente(request), self._version(request), self._semilla(request)))
 
 
 class EvaluarView(VistaAula):

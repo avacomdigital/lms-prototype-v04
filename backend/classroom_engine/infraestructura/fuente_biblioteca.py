@@ -5,21 +5,21 @@ Fuente de cursos REAL: AVACOM Biblioteca a través de la **API de Contenido v2**
 degradación que viven en ese módulo.
 
 Qué pide y cómo:
-  GET /v2/courses                                → la lista de cursos instalados (fichas o cursos completos)
-  GET /v2/courses/{courseId}?mode=class&profile= → el curso recortado; `profile=teacher` sólo para el docente
-  GET /v2/courses/{courseId}?version=…           → una versión archivada, para reconstruir un intento viejo
-  GET /v2/courses/{courseId}/media/{mediaId}[/r] → bytes del medio, en paso a través
-  POST /v2/evaluate · /v2/evaluate/batch         → el veredicto, siempre con `version`
+  GET  /v2/courses                                  → las fichas de los cursos instalados (la lista del panel)
+  GET  /v2/courses/{id}?mode=class&profile=…        → el esquema del curso, y por cada lección con objetos
+  GET  /v2/courses/{id}/lessons/{lid}?mode&profile  → la lección completa; juntos forman el curso 1.0 que normaliza el aula
+  POST /v2/media-sessions + GET en mediaPort        → bytes del medio, en paso a través
+  POST /v2/evaluate · /v2/evaluate/batch            → el veredicto, siempre con `version`
 
 Traducción de los códigos de error del contrato a los del aula:
-  sin link.json / puerto muerto / sin respuesta  → FuenteNoDisponible (503, estado normal)
-  index_rebuilding (503)                         → FuenteNoDisponible con «vuelve a intentarlo»
-  course_not_found (404)                         → CursoNoEncontrado
-  not_found · lesson_not_found (404)             → ReferenciaNoEncontrada
-  disabled_by_policy (403)                       → DesactivadoPorPolitica (404 para el aula)
-  invalid_parameter (400)                        → DatosInvalidos
-  unauthorized tras el reintento (401)           → FuenteError (502)
-  invalid_response y demás                       → FuenteError (502)
+  sin link.json / puerto muerto / sin respuesta          → FuenteNoDisponible (503, estado normal)
+  index_rebuilding (503)                                 → FuenteNoDisponible con «vuelve a intentarlo»
+  course_not_found · version_not_available (404)         → CursoNoEncontrado
+  not_found · lesson_not_found · object_not_found ·
+  question_not_found · media_session_not_found (404)     → ReferenciaNoEncontrada
+  policy_disabled · disabled_by_policy (403)             → DesactivadoPorPolitica (404 para el aula)
+  invalid_parameter (400) · invalid_response (422)       → DatosInvalidos
+  unauthorized tras el reintento (401) · answer_keys_forbidden · demás → FuenteError (502)
 """
 from __future__ import annotations
 
@@ -41,6 +41,10 @@ MODO_AULA = "class"                                   # el aula siempre pide el 
 PERFIL_POR_ROL = {"docente": "teacher", "estudiante": "student"}
 SUGERENCIA_INDICE = "La biblioteca está reconstruyendo su índice; vuelve a intentarlo en unos segundos."
 
+CODIGOS_CURSO = ("course_not_found", "version_not_available")
+CODIGOS_REFERENCIA = ("not_found", "lesson_not_found", "object_not_found", "question_not_found", "media_session_not_found")
+CODIGOS_POLITICA = ("policy_disabled", "disabled_by_policy")
+
 
 def _traducir(error: Exception, *, curso_ref: str = "", media_ref: str = "", pregunta_ref: str = "") -> Exception:
     if isinstance(error, BibliotecaNoDisponible):
@@ -51,59 +55,58 @@ def _traducir(error: Exception, *, curso_ref: str = "", media_ref: str = "", pre
     extra = {"codigo_biblioteca": codigo} if codigo else {}
     if codigo == "index_rebuilding" or estado == 503:
         return FuenteNoDisponible(detalle or "La biblioteca está reconstruyendo su índice.", sugerencia=SUGERENCIA_INDICE, **extra)
-    if codigo == "disabled_by_policy" or estado == 403:
+    if codigo in CODIGOS_POLITICA:
         return DesactivadoPorPolitica(detalle, curso_ref=curso_ref, **extra)
-    if codigo == "course_not_found":
+    if codigo in CODIGOS_CURSO:
         return CursoNoEncontrado(detalle, curso_ref=curso_ref, **extra)
-    if codigo in ("not_found", "lesson_not_found") or estado == 404:
-        if media_ref or pregunta_ref:
+    if codigo in CODIGOS_REFERENCIA or estado == 404:
+        if media_ref or pregunta_ref or codigo in ("object_not_found", "question_not_found", "media_session_not_found"):
             return ReferenciaNoEncontrada(detalle, media_ref=media_ref, pregunta_ref=pregunta_ref, **extra)
         return CursoNoEncontrado(detalle, curso_ref=curso_ref, **extra)
-    if codigo == "invalid_parameter" or estado == 400:
+    if codigo in ("invalid_parameter", "invalid_response") or estado in (400, 422):
         return DatosInvalidos(detalle, **extra)
     if estado == 501:
         return CapacidadAusente(detalle, capacidades=error.capacidades)
     return FuenteError(detalle, estado_biblioteca=estado, **extra)
 
 
-def _con_id(datos: dict) -> dict:
-    if isinstance(datos, dict) and "id" not in datos and datos.get("courseId"):
-        datos["id"] = datos["courseId"]
-    return datos
-
-
 class FuenteBiblioteca:
     nombre = "biblioteca"
 
     def cursos(self) -> list[dict]:
-        """`GET /v2/courses`. Si la lista trae fichas (sin `lessons`), se baja cada curso completo:
-        la lista de una escuela es corta y así el panel muestra lecciones y portada reales."""
+        """Las fichas de `GET /v2/courses` convertidas en cursos «de esquema»: el panel sólo
+        necesita clasificación, título, portada y conteos, no las láminas. Lo que la política
+        desactivó no viene en la lista (§7 del mapeo)."""
         try:
             fichas = v2.cursos()
         except (BibliotecaNoDisponible, BibliotecaError) as error:
             raise _traducir(error) from error
         salida = []
         for ficha in fichas:
-            if "lessons" in ficha:
-                salida.append(_con_id(ficha))
-                continue
             ref = str(ficha.get("courseId") or ficha.get("id") or "")
             if not ref:
                 continue
+            if "lessons" in ficha:
+                salida.append(dict(ficha, id=ref))
+                continue
             try:
-                salida.append(self.curso(ref, rol="estudiante"))
-            except (CursoNoEncontrado, DesactivadoPorPolitica, ReferenciaNoEncontrada):
-                continue      # lo que la política desactivó no se muestra (§7)
+                # El esquema trae `media` (para la portada) y las lecciones con sus objetos resumidos.
+                salida.append(v2.esquema_curso(ref, modo=MODO_AULA, perfil="student"))
+            except (BibliotecaNoDisponible, BibliotecaError) as error:
+                traducido = _traducir(error, curso_ref=ref)
+                if isinstance(traducido, (CursoNoEncontrado, DesactivadoPorPolitica, ReferenciaNoEncontrada)):
+                    continue
+                raise traducido from error
         return salida
 
-    def curso(self, curso_ref: str, *, version: str | None = None, rol: str = "estudiante") -> dict:
+    def curso(self, curso_ref: str, *, version: str | None = None, rol: str = "estudiante", semilla: str | None = None) -> dict:
         try:
-            datos = v2.curso(curso_ref, version=version, modo=MODO_AULA, perfil=PERFIL_POR_ROL.get(rol, "student"))
+            datos = v2.curso(curso_ref, version=version, modo=MODO_AULA, perfil=PERFIL_POR_ROL.get(rol, "student"), semilla=semilla)
         except (BibliotecaNoDisponible, BibliotecaError) as error:
             raise _traducir(error, curso_ref=curso_ref) from error
         if not isinstance(datos, dict):
             raise FuenteError("La biblioteca no devolvió un curso.", curso_ref=curso_ref)
-        return _con_id(datos)
+        return datos
 
     def medio(self, curso_ref: str, media_ref: str, ruta: str | None, rango: str | None, metodo: str) -> Bytes:
         try:

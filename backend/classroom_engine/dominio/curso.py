@@ -49,6 +49,22 @@ def texto_plano(texto: str | None) -> str:
     return _NEGRITA.sub(r"\1", texto or "")
 
 
+_FRACCION = re.compile(r"\\[dt]?frac\{([^{}]*)\}\{([^{}]*)\}")
+_SIMBOLOS = (("\\times", "×"), ("\\cdot", "·"), ("\\div", "÷"), ("\\pm", "±"), ("\\le", "≤"), ("\\ge", "≥"), ("\\neq", "≠"),
+             ("\\approx", "≈"), ("\\infty", "∞"), ("\\pi", "π"), ("\\%", "%"), ("\\,", " "), ("\\;", " "), ("\\ ", " "))
+
+
+def texto_formula(latex: str) -> str:
+    """Lectura aproximada de una fórmula LaTeX sencilla para pintarla sin motor matemático:
+    `\\frac{1}{3}` → «1/3», `\\times` → «×». Lo que no se reconoce se deja tal cual."""
+    texto = _FRACCION.sub(lambda m: f"{m.group(1)}/{m.group(2)}", latex or "")
+    for origen, destino in _SIMBOLOS:
+        texto = texto.replace(origen, destino)
+    texto = re.sub(r"\^\{([^{}]*)\}", r"^\1", texto)
+    texto = re.sub(r"_\{([^{}]*)\}", r"_\1", texto)
+    return texto.replace("{", "").replace("}", "").replace("$", "").strip()
+
+
 def slug(valor: str) -> str:
     """«Matemáticas» → «matematicas»: el código de una asignatura del contrato 1 se deriva de su nombre."""
     plano = unicodedata.normalize("NFKD", valor or "").encode("ascii", "ignore").decode("ascii")
@@ -157,8 +173,9 @@ def _medio(m: dict, url_medio: UrlMedio) -> dict:
         "duracion_seg": m.get("durationSec"),
         "paginas": m.get("pageCount"),
         "texto_alternativo": m.get("altText"),
-        "subtitulos_url": url_medio(media_ref, "subtitulos") if m.get("captionsPath") else None,
-        "transcripcion_url": url_medio(media_ref, "transcripcion") if m.get("transcriptPath") else None,
+        # El manifiesto de origen trae las rutas (`captionsPath`); la API v2 sólo dice si existen (`hasCaptions`).
+        "subtitulos_url": url_medio(media_ref, "subtitulos") if (m.get("captionsPath") or m.get("hasCaptions")) else None,
+        "transcripcion_url": url_medio(media_ref, "transcripcion") if (m.get("transcriptPath") or m.get("hasTranscript")) else None,
         "licencia": _licencia(m.get("license")),
     }
     if clase == "simulation":
@@ -200,6 +217,10 @@ def _bloque(b: dict, medios: dict[str, dict], url_medio: UrlMedio) -> dict:
     elif tipo == "list":
         items = [str(i) for i in (b.get("items") or [])]
         salida.update(ordenada=bool(b.get("ordered")), items=items, items_tramos=[tramos(i) for i in items])
+    elif tipo == "formula":
+        latex = str(b.get("latex") or b.get("text") or "")
+        salida.update(latex=latex, en_bloque=bool(b.get("display", True)), texto=texto_formula(latex),
+                      tramos=tramos(texto_formula(latex)), pie=b.get("caption"))
     elif tipo in ("image", "video", "audio", "pdf"):
         media_ref = str(b.get("mediaId", ""))
         medio = medios.get(media_ref) or _medio_ausente(media_ref, url_medio)
