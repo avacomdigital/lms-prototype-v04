@@ -1,0 +1,1919 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "AVACOM Content API",
+    "version": "2.0.0",
+    "description": "Loopback API of the AVACOM Content app for the LMS. Discover the port and token in link.json (%ProgramData%\\AVACOM\\content\\link.json). Every request needs the X-Avacom-Token header. Course content follows contracts/course.schema.json. Media are served by a second loopback server through media sessions."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:{apiPort}",
+      "variables": {
+        "apiPort": {
+          "default": "0",
+          "description": "apiPort from link.json"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "token": []
+    }
+  ],
+  "paths": {
+    "/v2/health": {
+      "get": {
+        "summary": "Service status",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error. Codes: unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/openapi.json": {
+      "get": {
+        "summary": "This document",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/tree": {
+      "get": {
+        "summary": "Content tree country > level > grade > subject > topic with course counts",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "description": "ISO 3166-1 alpha-2, e.g. CO",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "description": "Level code",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "grade",
+            "in": "query",
+            "required": false,
+            "description": "Grade code",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "description": "Subject code",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "required": false,
+            "description": "Topic code",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "description": "simple, class, exam, review, free_learning. Repeat or comma-separate for OR.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "objectType",
+            "in": "query",
+            "required": false,
+            "description": "lecture, explanation, simulation_lab, activity, exam",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "questionType",
+            "in": "query",
+            "required": false,
+            "description": "open, multiple_choice, fill_blanks, matching, true_false, ordering",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "mediaKind",
+            "in": "query",
+            "required": false,
+            "description": "image, video, audio, pdf, simulation",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "simProvider",
+            "in": "query",
+            "required": false,
+            "description": "phet, avacom, third_party",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "curriculumFramework",
+            "in": "query",
+            "required": false,
+            "description": "e.g. DBA",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "curriculumCode",
+            "in": "query",
+            "required": false,
+            "description": "Exact code or prefix",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": false,
+            "description": "BCP 47 tag, e.g. es-CO",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "minDurationMin",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "maxDurationMin",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "required": false,
+            "description": "student (default) or teacher. Teacher enables teacher notes in search.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "student",
+                "teacher"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TreeNode"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/courses": {
+      "get": {
+        "summary": "List installed courses",
+        "parameters": [
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "description": "ISO 3166-1 alpha-2, e.g. CO",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "description": "Level code",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "grade",
+            "in": "query",
+            "required": false,
+            "description": "Grade code",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "description": "Subject code",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "required": false,
+            "description": "Topic code",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "description": "simple, class, exam, review, free_learning. Repeat or comma-separate for OR.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "objectType",
+            "in": "query",
+            "required": false,
+            "description": "lecture, explanation, simulation_lab, activity, exam",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "questionType",
+            "in": "query",
+            "required": false,
+            "description": "open, multiple_choice, fill_blanks, matching, true_false, ordering",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "mediaKind",
+            "in": "query",
+            "required": false,
+            "description": "image, video, audio, pdf, simulation",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "simProvider",
+            "in": "query",
+            "required": false,
+            "description": "phet, avacom, third_party",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "curriculumFramework",
+            "in": "query",
+            "required": false,
+            "description": "e.g. DBA",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "curriculumCode",
+            "in": "query",
+            "required": false,
+            "description": "Exact code or prefix",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": false,
+            "description": "BCP 47 tag, e.g. es-CO",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "minDurationMin",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "maxDurationMin",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "required": false,
+            "description": "student (default) or teacher. Teacher enables teacher notes in search.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "student",
+                "teacher"
+              ]
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "Full text, accent insensitive, prefix from 3 letters",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "relevance",
+                "title",
+                "updated"
+              ]
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoursePage"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error. Codes: invalid_parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error. Codes: index_rebuilding",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/search": {
+      "get": {
+        "summary": "Search courses, lessons, objects and questions",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "course",
+                "lesson",
+                "object",
+                "question"
+              ]
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "description": "ISO 3166-1 alpha-2, e.g. CO",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "description": "Level code",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "grade",
+            "in": "query",
+            "required": false,
+            "description": "Grade code",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "subject",
+            "in": "query",
+            "required": false,
+            "description": "Subject code",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "topic",
+            "in": "query",
+            "required": false,
+            "description": "Topic code",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "description": "simple, class, exam, review, free_learning. Repeat or comma-separate for OR.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "objectType",
+            "in": "query",
+            "required": false,
+            "description": "lecture, explanation, simulation_lab, activity, exam",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "questionType",
+            "in": "query",
+            "required": false,
+            "description": "open, multiple_choice, fill_blanks, matching, true_false, ordering",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "mediaKind",
+            "in": "query",
+            "required": false,
+            "description": "image, video, audio, pdf, simulation",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "simProvider",
+            "in": "query",
+            "required": false,
+            "description": "phet, avacom, third_party",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": true
+          },
+          {
+            "name": "curriculumFramework",
+            "in": "query",
+            "required": false,
+            "description": "e.g. DBA",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "curriculumCode",
+            "in": "query",
+            "required": false,
+            "description": "Exact code or prefix",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": false,
+            "description": "BCP 47 tag, e.g. es-CO",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "minDurationMin",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "maxDurationMin",
+            "in": "query",
+            "required": false,
+            "description": "",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "required": false,
+            "description": "student (default) or teacher. Teacher enables teacher notes in search.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "student",
+                "teacher"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error. Codes: invalid_parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/courses/{courseId}": {
+      "get": {
+        "summary": "Course metadata, lesson outline with object summaries and media list",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "required": false,
+            "description": "student (default) removes teacher notes",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "student",
+                "teacher"
+              ]
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "description": "Keeps only objects that declare this mode",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "simple",
+                "class",
+                "exam",
+                "review",
+                "free_learning"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseOutline"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error. Codes: policy_disabled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error. Codes: course_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/courses/{courseId}/lessons/{lessonId}": {
+      "get": {
+        "summary": "Full lesson, filtered by mode and redacted by profile",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lessonId",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "required": false,
+            "description": "student (default) removes teacher notes",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "student",
+                "teacher"
+              ]
+            }
+          },
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "description": "Keeps only objects that declare this mode",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "simple",
+                "class",
+                "exam",
+                "review",
+                "free_learning"
+              ]
+            }
+          },
+          {
+            "name": "includeActivityKeys",
+            "in": "query",
+            "required": false,
+            "description": "Only for activities with feedback=immediate. Never allowed with exams (403 answer_keys_forbidden).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "seed",
+            "in": "query",
+            "required": false,
+            "description": "Makes shuffled options and ordering items reproducible for one student",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lesson as defined in course.schema.json#/$defs/Lesson plus courseId and version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error. Codes: policy_disabled, answer_keys_forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error. Codes: course_not_found, lesson_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/courses/{courseId}/objects/{objectId}": {
+      "get": {
+        "summary": "One lesson object, redacted",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "objectId",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "required": false,
+            "description": "student (default) removes teacher notes",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "student",
+                "teacher"
+              ]
+            }
+          },
+          {
+            "name": "includeActivityKeys",
+            "in": "query",
+            "required": false,
+            "description": "Only for activities with feedback=immediate. Never allowed with exams (403 answer_keys_forbidden).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "seed",
+            "in": "query",
+            "required": false,
+            "description": "Makes shuffled options and ordering items reproducible for one student",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Object as defined in course.schema.json#/$defs/LessonObject plus courseId, version, lessonId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error. Codes: policy_disabled, answer_keys_forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error. Codes: object_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/courses/{courseId}/exams/{objectId}/pool": {
+      "get": {
+        "summary": "Exam settings and question metadata to assemble each student's exam",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "objectId",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExamPool"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error. Codes: invalid_parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error. Codes: object_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/courses/{courseId}/exams/{objectId}/questions": {
+      "get": {
+        "summary": "Visible questions chosen for one student, in the requested order",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "objectId",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": true,
+            "description": "Comma separated question ids",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "explode": false
+          },
+          {
+            "name": "seed",
+            "in": "query",
+            "required": false,
+            "description": "Makes shuffled options and ordering items reproducible for one student",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExamQuestions"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error. Codes: question_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/courses/{courseId}/questions/{questionId}/grading-guide": {
+      "get": {
+        "summary": "Model answer, rubric and incorrect examples of an open question (teacher grading screen)",
+        "parameters": [
+          {
+            "name": "courseId",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "questionId",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "description": "Course version of the attempt; archived versions allowed",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GradingGuide"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error. Codes: invalid_parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error. Codes: question_not_found, version_not_available",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/evaluate": {
+      "post": {
+        "summary": "Score one response. Answer keys never leave the Content app.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error. Codes: object_not_found, question_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error. Codes: invalid_response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/evaluate/batch": {
+      "post": {
+        "summary": "Score up to 200 responses",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "items"
+                ],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "maxItems": 200,
+                    "items": {
+                      "$ref": "#/components/schemas/EvaluateRequest"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Results in request order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/EvaluationResult"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/media-sessions": {
+      "post": {
+        "summary": "Create capability URLs for the media of a lesson, a list of media or the whole course",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MediaSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaSession"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error. Codes: invalid_parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error. Codes: course_not_found, lesson_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/media-sessions/{sessionId}": {
+      "delete": {
+        "summary": "Revoke a media session immediately",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "path",
+            "required": true,
+            "description": "",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "404": {
+            "description": "Error. Codes: media_session_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/policies": {
+      "get": {
+        "summary": "School policy (read only). Only disabled entries are listed.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Policy"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "token": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Avacom-Token"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "details": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "contract": {
+            "type": "integer",
+            "const": 2
+          },
+          "schema": {
+            "type": "string"
+          },
+          "index": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "rebuilding"
+            ]
+          },
+          "installedCourses": {
+            "type": "integer"
+          }
+        }
+      },
+      "NamedCode": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "order": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "Classification": {
+        "type": "object",
+        "properties": {
+          "country": {
+            "type": "string"
+          },
+          "countryName": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/NamedCode"
+          },
+          "grade": {
+            "$ref": "#/components/schemas/NamedCode"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/NamedCode"
+          },
+          "topic": {
+            "$ref": "#/components/schemas/NamedCode"
+          }
+        }
+      },
+      "CourseSummary": {
+        "type": "object",
+        "properties": {
+          "courseId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "translationGroupId": {
+            "type": "string"
+          },
+          "classification": {
+            "$ref": "#/components/schemas/Classification"
+          },
+          "estimatedDurationMin": {
+            "type": "integer"
+          },
+          "modes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "curriculumRefs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "framework": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "lessonCount": {
+            "type": "integer"
+          },
+          "coverMediaId": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        }
+      },
+      "CoursePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CourseSummary"
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        }
+      },
+      "TreeNode": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "country",
+              "level",
+              "grade",
+              "subject",
+              "topic"
+            ]
+          },
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "Policy reference, e.g. CO/primary/4/math"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TreeNode"
+            }
+          }
+        }
+      },
+      "SearchResult": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scope": {
+                  "type": "string"
+                },
+                "courseId": {
+                  "type": "string"
+                },
+                "lessonId": {
+                  "type": "string"
+                },
+                "objectId": {
+                  "type": "string"
+                },
+                "questionId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "snippet": {
+                  "type": "string",
+                  "description": "Matches wrapped in ** markers"
+                },
+                "treePath": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          },
+          "total": {
+            "type": "integer"
+          }
+        }
+      },
+      "CourseOutline": {
+        "type": "object",
+        "description": "Course metadata (see course.schema.json), lessons with object summaries {id, type, title, modes, topicRef, estimatedDurationSec, questionCount, pageCount, mediaId} and media {id, kind, title, mimeType, durationSec, pageCount, width, height, altText, hasCaptions, hasTranscript, entry, simulation, license}."
+      },
+      "ExamPool": {
+        "type": "object",
+        "properties": {
+          "courseId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "objectId": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "object"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "questionId": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "topicRef": {
+                  "type": "string"
+                },
+                "difficulty": {
+                  "type": "integer"
+                },
+                "estimatedSec": {
+                  "type": "integer"
+                },
+                "points": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "ExamQuestions": {
+        "type": "object",
+        "properties": {
+          "courseId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "objectId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "instructions": {
+            "type": "string"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "description": "Question without answer keys, feedback or teacher notes"
+            }
+          }
+        }
+      },
+      "GradingGuide": {
+        "type": "object",
+        "properties": {
+          "courseId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "questionId": {
+            "type": "string"
+          },
+          "prompt": {
+            "type": "string"
+          },
+          "points": {
+            "type": "number"
+          },
+          "responseFormat": {
+            "type": "string"
+          },
+          "modelAnswer": {
+            "type": "string"
+          },
+          "rubric": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "incorrectExamples": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "EvaluateRequest": {
+        "type": "object",
+        "required": [
+          "courseId",
+          "objectId",
+          "questionId",
+          "response"
+        ],
+        "properties": {
+          "courseId": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "description": "Optional. Defaults to the installed version; archived versions allowed."
+          },
+          "objectId": {
+            "type": "string"
+          },
+          "questionId": {
+            "type": "string"
+          },
+          "response": {
+            "type": "object",
+            "description": "multiple_choice {selectedOptionIds[]}, true_false {value}, fill_blanks {blanks:{id:value}}, matching {pairs:[{leftId,rightId}]}, ordering {order[]}, open {text|drawingRef|audioRef}"
+          }
+        }
+      },
+      "EvaluationResult": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string"
+          },
+          "score": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "maxScore": {
+            "type": "number"
+          },
+          "correct": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "requiresManualGrading": {
+            "type": "boolean"
+          },
+          "feedback": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MediaSessionRequest": {
+        "type": "object",
+        "required": [
+          "courseId"
+        ],
+        "properties": {
+          "courseId": {
+            "type": "string"
+          },
+          "lessonId": {
+            "type": "string"
+          },
+          "mediaIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ttlSec": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 28800,
+            "default": 14400
+          }
+        }
+      },
+      "MediaSession": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "urls": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "mediaId to URL. Simulations point to their entry file; relative resources resolve under the same folder."
+          },
+          "extras": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "captions": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "transcript": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "files": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Simulations only. GET returns {mediaId, entry, files[]} with every relative path of the simulation folder; each file is served at <baseUrl><mediaId>/<path>."
+                }
+              }
+            },
+            "description": "Per mediaId: captions (VTT) and transcript for audio and video, files list URL for simulations."
+          }
+        }
+      },
+      "Policy": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "type": "string",
+            "enum": [
+              "country",
+              "level",
+              "grade",
+              "subject",
+              "topic",
+              "course",
+              "lesson",
+              "object"
+            ]
+          },
+          "ref": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "changedBy": {
+            "type": "string"
+          },
+          "changedAt": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
