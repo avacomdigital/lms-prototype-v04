@@ -5,7 +5,7 @@
 | Módulo | MOD-007 · Classroom Engine · clientes **AVACOM LMS OPS** (Windows, pantalla táctil sin teclado) y **AVACOM LMS Student** (Windows y Android) |
 | Estado | **Implementado.** Compila en Windows (OPS y Student), 14 pruebas del núcleo en verde (6 nuevas). Todo el journey arranca al tocar **«Clase de hoy»** en el tablero de OPS |
 | Journey que implementa | [03 · Journey «Clase de Hoy»](03-journey-clase-de-hoy.md): 4 pantallas en OPS (P1–P4) y 2 de reflejo en Student (S1–S2) |
-| Contrato que consume | `/api/aula/` según [01 · Modelo de datos y API](01-modelo-de-datos.md) §9, con la fuente de cursos **`ejemplo`** (`example.json`) mientras AVACOM Biblioteca no publique el manifiesto (Q-44/Q-45) |
+| Contrato que consume | `/api/aula/` según [01 · Modelo de datos y API](01-modelo-de-datos.md) §9. OPS pide la fuente **`biblioteca`** (API de Contenido v2, [05](05-contrato-biblioteca.md)) y, si no está encendida, ofrece el curso de **`ejemplo`** (`example.json`) con un toque; Student no elige fuente |
 | Design system | `LMS_DESIGN_SYSTEM_UI.html` (Avacom LMS UI Kit v2): tres materiales, colores semánticos y de categoría, botones de 64 px con relieve, radios por jerarquía, tacto primero |
 | Documentos hermanos | [02 · Sugerencias](02-sugerencias-frontend.md) (DTO, mapa de componentes y reglas de WebView, de donde salió este código) · [00 · Introducción](00-introduccion.md) |
 
@@ -161,7 +161,7 @@ Verificación automática: `dotnet test tests/Avacom.Lms.Core.Tests` (14 pruebas
 |---|---|
 | Vistas construidas en C# (código) sobre XAML mínimo con contenedores nombrados | Es el estilo de `CourseContentView` y `AsignaturasPage`; permite reutilizar `Ds` y evita duplicar plantillas XAML en OPS y Student |
 | Un `Ds` estático en `Avacom.Lms.Ui` en vez de un `ResourceDictionary` compartido | Las dos apps ya tienen sus `Styles.xaml`; el design system se necesita sobre todo en código y `Ds` da tipado, fábricas y el hundimiento al pulsar |
-| `Sesion.FuenteAula = "ejemplo"` como constante en cada app | El día que Biblioteca publique el manifiesto se cambia a `"biblioteca"` y nada más del cliente depende de ello |
+| `Sesion.FuenteAula` en OPS es una preferencia (`ops_fuente_aula`, por defecto `biblioteca`); Student no manda `fuente` | Con la API de Contenido v2 conectada ([05](05-contrato-biblioteca.md)), OPS decide la fuente sin teclado (botón «Usar el curso de ejemplo» y chip que alterna) y la tableta sigue cualquier clase: el backend resuelve la fuente por la referencia y las URL de medios ya la traen |
 | `profesor_id` derivado del nombre del docente del tablero (`docente-ms-carter`) | OPS aún no inicia sesión con MOD-001; con JWT lo aporta el backend y el cliente no cambia (Q-50) |
 | P3 fusiona PAN-001 y PAN-022 | El nodo es una sola pantalla táctil: proyectar y controlar ocurren en la misma superficie |
 | Selección de lección + un único Primary en P2 | Un Primary por lección violaría «uno por pantalla» |
@@ -175,7 +175,7 @@ Verificación automática: `dotnet test tests/Avacom.Lms.Core.Tests` (14 pruebas
 
 | Qué | Estado | Siguiente paso |
 |---|---|---|
-| Responder la actividad desde la tableta y ver la nota | Vista previa sin envío | MOD-010 debe conocer las preguntas del manifiesto o Biblioteca exponer `evaluacion`/`comprobar` por `objeto_ref` (Q-48); entonces S2 usa el flujo de intentos existente |
+| Responder la actividad desde la tableta y ver la nota | Vista previa sin envío | El backend ya califica con `POST /api/aula/cursos/{ref}/evaluar/` (forma de `respuesta` por tipo en [05](05-contrato-biblioteca.md) §4); falta que MOD-010 guarde el intento (Q-48) y entonces S2 envía en vez de previsualizar |
 | Desenfoque real del vidrio | Aproximado con transparencia | Handler de plataforma (Acrylic en WinUI, RenderEffect en Android) si el CTO lo pide; el kit lo desaconseja en la pantalla del aula |
 | Runtime WebView2 en Windows | No verificado por el instalador | Añadir la comprobación o instalación silenciosa en `installer/` (nota de [02](02-sugerencias-frontend.md) §4.1) |
 | Orientación horizontal forzada en Android para laboratorios | No implementada | `MainActivity.RequestedOrientation` mientras `LaboratorioView` esté activa |

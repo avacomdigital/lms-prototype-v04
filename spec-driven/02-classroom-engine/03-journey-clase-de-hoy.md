@@ -4,7 +4,7 @@
 |---|---|
 | Estado | **Propuesta cerrada para el siguiente prompt** (el del frontend MAUI). Sustituye, para ese prompt, el recorrido largo de [02 · Sugerencias](02-sugerencias-frontend.md) §5: mismas piezas, menos pantallas |
 | Punto de entrada único | El hexágono **«Clase de hoy»** del tablero de AVACOM OPS (`DashboardPage`). Hoy navega a `activity-monitor`, una demo estática; pasa a abrir este journey |
-| Fuente de cursos, hoy | **`fuente=ejemplo`**: el manifiesto [`example.json`](example.json) («Ciencias naturales · Estados de la materia y sus cambios») servido por `/api/aula/…`. AVACOM Biblioteca aún no publica el esquema de curso (Q-44, Q-45); cuando lo haga, cambia **una constante** en el cliente y nada más |
+| Fuente de cursos, hoy | **`biblioteca`** por defecto: AVACOM Biblioteca por la API de Contenido v2 ([05](05-contrato-biblioteca.md)). Si la biblioteca no está encendida, P1 lo dice y ofrece **«Usar el curso de ejemplo»** con un toque: el manifiesto [`example.json`](example.json) («Ciencias naturales · Estados de la materia y sus cambios») servido por `/api/aula/…?fuente=ejemplo`. El chip de la fuente alterna entre las dos |
 | Alcance | **4 pantallas nuevas en OPS** (P1–P4) y **2 de reflejo en Student** (S1–S2). Todo el journey del profesor ocurre dentro de «Clase de hoy» |
 | Contrato | [01 · Modelo de datos y API](01-modelo-de-datos.md) §9 · DTO y mapa de componentes en [02](02-sugerencias-frontend.md) §3 y §4 |
 | Restricción física | El nodo principal (OPS) es una pantalla táctil **sin teclado**: nada de este journey exige escribir |
@@ -16,7 +16,7 @@
 Lo que el siguiente prompt tiene que dar por hecho, sin volver a deducirlo:
 
 1. **Backend listo.** La app `backend/classroom_engine/` (MOD-007) está implementada y probada: consumo del curso normalizado (`/api/aula/cursos/…`, `/api/aula/pruebas/curso/`) y ciclo de vida de la sesión de clase (`/api/aula/sesiones/…`). 161 pruebas en verde. Ninguna tabla guarda el curso; sólo referencias.
-2. **Biblioteca pendiente.** No hay respuesta de AVACOM Biblioteca sobre cómo llegarán los cursos con el esquema 1.0. Por eso el cliente trabaja con **`fuente=ejemplo`** y el backend ya resuelve solo la referencia del ejemplo aunque no se pase el parámetro. El día que Biblioteca publique `GET /v1/curso/{ref}`, el mismo normalizador la sirve.
+2. **Biblioteca conectada por la API de Contenido v2** ([05](05-contrato-biblioteca.md)): `GET /v2/courses/{courseId}?mode=class&profile=…` entrega el curso 1.0 recortado y el mismo normalizador lo sirve. OPS pide `fuente=biblioteca` por defecto y ofrece el ejemplo con un toque cuando la biblioteca está apagada; la tableta no manda `fuente` y el backend resuelve solo la referencia del ejemplo.
 3. **Una sola entrada.** Todo MOD-007 vive detrás de «Clase de hoy». No se toca «Asignaturas» (modo libre, `CourseContentView`) ni se crea otra entrada en el menú.
 4. **«Materias asignadas».** La lista de materias la da `GET /api/aula/cursos/` agrupada por `classification.subject`. Con la fuente de ejemplo trae **una**: Ciencias naturales, con el curso «Estados de la materia y sus cambios». La asignación real por grupo y docente vendrá de MOD-002 y de la política de la escuela en Biblioteca; el cliente no la calcula.
 5. **El journey del profesor es completo hoy**: iniciar la clase, código de unión, ver quién entra, proyectar lámina a lámina, abrir el laboratorio, bloquear y liberar pantallas, lanzar la actividad y ver entregas, avisar al grupo y cerrar con resumen. Todas esas llamadas existen y están probadas.

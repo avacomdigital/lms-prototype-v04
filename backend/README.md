@@ -54,6 +54,16 @@ set AVACOM_CONTENIDO_ENLACE=%TEMP%\enlace-pruebas.json
 .venv\Scripts\python manage.py runserver 0.0.0.0:8000
 ```
 
+El aula (`/api/aula/`) habla con la **API de Contenido v2** de la biblioteca
+(`link.json`, `Bearer`), que tiene su propio host de pruebas construido a partir del
+manifiesto `example.json` y que recorta, baraja y califica como la API real:
+
+```powershell
+.venv\Scripts\python -m tools.host_contenido_v2_pruebas %TEMP%\link-pruebas.json
+set AVACOM_CONTENIDO_ENLACE_V2=%TEMP%\link-pruebas.json
+.venv\Scripts\python manage.py runserver 0.0.0.0:8000
+```
+
 ## Rutas
 
 | Ruta | Verbo | Qué hace |
@@ -77,8 +87,10 @@ set AVACOM_CONTENIDO_ENLACE=%TEMP%\enlace-pruebas.json
 | `/api/inscripciones/` | GET, POST, DELETE lógico | Inscripción |
 | `/api/auditoria/` | GET | Sólo lectura |
 | `/api/courses/…` y demás rutas de administración | cualquier verbo | **409** `administracion_no_permitida` |
-| `/api/aula/cursos/[?fuente=biblioteca|ejemplo]` | GET | Cursos agrupados por **asignatura** (`classification.subject`) para el panel de navegación |
-| `/api/aula/cursos/{curso_ref}/[?rol=docente]` | GET | La **vista de aula** del curso: lecciones, objetos (`presentacion`, `lectura`, `laboratorio_web`, `actividad`, `examen`), bloques, medios y preguntas **sin claves**, con `componente` para MAUI |
+| `/api/aula/fuente/[?fuente=]` | GET | Estado de la fuente de cursos (¿hay `link.json`? ¿responde `/v2/health`? cursos instalados y huella). Nunca 503 |
+| `/api/aula/cursos/[?fuente=biblioteca|ejemplo]` | GET | Cursos agrupados por **asignatura** (`classification.subject`) para el panel de navegación. La fuente `biblioteca` habla la **API de Contenido v2** (`link.json`, `Bearer`; ver `spec-driven/02-classroom-engine/05-contrato-biblioteca.md`) |
+| `/api/aula/cursos/{curso_ref}/evaluar/` | POST | `{version?, objeto_ref, pregunta_ref, respuesta}` o `{items[…]}` → veredicto de `POST /v2/evaluate` (`puntaje` decimal o nulo, `correcta`, `requiere_correccion_manual`) sin ninguna clave; no escribe |
+| `/api/aula/cursos/{curso_ref}/[?rol=docente&version=]` | GET | La **vista de aula** del curso: lecciones, objetos (`presentacion`, `lectura`, `laboratorio_web`, `actividad`, `examen`), bloques, medios y preguntas **sin claves**, con `componente` para MAUI. `version` pide una versión archivada |
 | `/api/aula/cursos/{curso_ref}/lecciones/{ref}/`, `objetos/{ref}/` | GET | Una lección o un objeto sueltos |
 | `/api/aula/cursos/{curso_ref}/medios/{media_ref}/[ruta]` | GET, HEAD | Bytes del medio (`Range`); con la fuente `ejemplo`, marcadores PNG/WAV/PDF/HTML/VTT |
 | `/api/aula/pruebas/curso/`, `/api/aula/pruebas/cursos/` | GET | **Endpoint de prueba**: el curso «Ciencias naturales» de `spec-driven/02-classroom-engine/example.json`, leído del disco en cada petición |
@@ -150,7 +162,8 @@ error, **404/403** referencia inexistente o desactivada por la escuela.
 
 | Variable | Para qué |
 |---|---|
-| `AVACOM_CONTENIDO_ENLACE` | Ruta forzada de la nota de enlace (pruebas / host de pruebas) |
+| `AVACOM_CONTENIDO_ENLACE` | Ruta forzada de la nota de enlace del contrato 1 (`enlace.json`; pruebas / host de pruebas) |
+| `AVACOM_CONTENIDO_ENLACE_V2` | Ruta forzada de `link.json`, la nota de la API de Contenido v2 (`apiPort` + `token`); por defecto `%ProgramData%\AVACOM\contenido\link.json` |
 | `AVACOM_CONTENIDO_TIEMPO_ESPERA_SEG` | Tiempo de espera hacia la biblioteca (3 s por defecto) |
 | `AVACOM_LMS_DB` | Ruta del SQLite (por defecto `backend/db.sqlite3`) |
 | `AVACOM_LMS_DEBUG` | `1` por defecto en el prototipo |

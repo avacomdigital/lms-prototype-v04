@@ -423,7 +423,7 @@ Además, asientos en `m19_auditoria` con acciones `aula.*` (sesión iniciada, su
 
 | Puerto (`aplicacion/puertos.py`) | Módulo | Qué pide MOD-007 | Adaptador del prototipo |
 |---|---|---|---|
-| `FuenteDeCursos` | Biblioteca (MOD-004) | `cursos()`, `curso(ref)`, `medio(...)` | `FuenteBiblioteca` (vía `biblioteca.cliente`) y `FuenteEjemplo` (`example.json`) |
+| `FuenteDeCursos` | Biblioteca (MOD-004) | `cursos()`, `curso(ref, version, rol)`, `medio(...)`, `evaluar(...)`, `evaluar_lote(...)`, `estado()` | `FuenteBiblioteca` (API de Contenido v2 vía `biblioteca.contenido_v2`, ver [05](05-contrato-biblioteca.md)) y `FuenteEjemplo` (`example.json`; no califica: 501) |
 | `Identidad` | MOD-001 / MOD-002 | Rótulos de persona y grupo; `esta_inscrito(grupo, persona)` → `True`/`False`/`None` (no se sabe) | `IdentidadAcceso`: lee `m01_*`; sin grupo o sin padrón devuelve `None` y no bloquea |
 | `Evaluacion` | MOD-010 | `preparar_asignacion(...)` al lanzar una actividad; `intentos_abiertos(...)` al cerrar | `EvaluacionExpediente`: hoy devuelve `''` y cuenta `m10_intento` abiertos (Q-49) |
 | `Reloj` | MOD-015 | `ahora_ms()` (BR-062) | `RelojNodo` |
@@ -458,7 +458,8 @@ Reglas verificables (`tests/test_arquitectura.py`): `dominio/` y `aplicacion/` n
 
 - **Errores**: `{ "detail", "codigo", …extra }`. `400 datos_invalidos` · `403 sin_permiso` / `participante_expulsado` · `404 no_encontrado` / `curso_no_encontrado` / `referencia_no_encontrada` / `codigo_invalido` · `409 transicion_invalida` / `sesion_cerrada` / `sesion_activa_existente` / `grupo_con_sesion_activa` / `actividades_abiertas` / `sin_participantes_admitidos` · `501 capacidad_ausente` (con `capacidades`) · `502 fuente_error` · `503 fuente_no_disponible` (con `disponible: false` y `sugerencia`).
 - **Fechas**: milisegundos desde época, del reloj del nodo. Toda respuesta de sesión trae `servidor_en` para que la tableta se alinee sin usar su reloj.
-- **`?fuente=biblioteca|ejemplo`**: la fuente del curso. Sin parámetro, la configurada (`AVACOM_AULA_FUENTE_CURSOS`, por defecto `biblioteca`); si la referencia es la del manifiesto de ejemplo, se resuelve sola.
+- **`?fuente=biblioteca|ejemplo`**: la fuente del curso. Sin parámetro, la configurada (`AVACOM_AULA_FUENTE_CURSOS`, por defecto `biblioteca`); si la referencia es la del manifiesto de ejemplo, se resuelve sola. La fuente `biblioteca` habla la API de Contenido v2 ([05](05-contrato-biblioteca.md)).
+- **`?version=1.1.0`**: pide una versión archivada del curso, para reconstruir lo que vio el alumno en un intento viejo. Sin parámetro, la instalada: la clase en vivo siempre ve la versión vigente (artículo 14.3).
 - **`?rol=docente`**: incluye `notas_docente`. Con JWT de MOD-001 el rol lo decide la sesión (`menu = student` ⇒ estudiante) y el parámetro se ignora. Por defecto, estudiante.
 - **Actor** (Q-34): con JWT, quien firma; sin JWT, `profesor_id` (o `actor`) del cuerpo, como `actor` en el expediente. Con JWT de estudiante, las funciones del profesor responden `403 sin_permiso`.
 - **Permiso DRF**: `SesionSiSeExige` (exige sesión sólo con `AVACOM_LMS_EXIGIR_SESION=1`).
@@ -473,6 +474,8 @@ Reglas verificables (`tests/test_arquitectura.py`): `dominio/` y `aplicacion/` n
 | `/api/aula/cursos/{curso_ref}/objetos/{objeto_ref}/` | GET | `{curso: ficha, leccion (sin objetos), objeto}` |
 | `/api/aula/cursos/{curso_ref}/medios/{media_ref}/` | GET · HEAD | Bytes del medio, con `Range` |
 | `/api/aula/cursos/{curso_ref}/medios/{media_ref}/{ruta}` | GET · HEAD | Archivo interno (`index.html`, `…_es.html`) o `subtitulos` / `transcripcion` |
+| `/api/aula/fuente/?fuente=` | GET | Estado de la fuente, **nunca 503**: `{fuente, disponible, motivo, sugerencia, huella, cursos_instalados[{curso_ref, version, titulo}]}` |
+| `/api/aula/cursos/{curso_ref}/evaluar/?fuente=` | POST | `{version?, objeto_ref, pregunta_ref, respuesta}` o `{version?, items[…]}` (≤ 200) → veredicto `{puntaje, puntaje_maximo, correcta, requiere_correccion_manual, pendiente, retroalimentacion[]}` sin ninguna clave. No escribe: el intento es de MOD-010 ([05](05-contrato-biblioteca.md) §4) |
 | `/api/aula/pruebas/cursos/` | GET | La lista con la fuente `ejemplo` forzada |
 | `/api/aula/pruebas/curso/?rol=` | GET | **El endpoint de prueba**: «Ciencias naturales · Estados de la materia y sus cambios» |
 
@@ -563,10 +566,10 @@ Una pregunta de completar, tal como la ve el estudiante (sin `acceptedAnswers`, 
 
 | `kind` | Con `fuente=ejemplo` | Con `fuente=biblioteca` |
 |---|---|---|
-| `image` | PNG generado (banda roja, recuadro; usa `width`/`height`) | Paso a través de `GET /v1/medio/{media_ref}` (Q-45) |
+| `image` | PNG generado (banda roja, recuadro; usa `width`/`height`) | Paso a través de `GET /v2/courses/{courseId}/media/{mediaId}` ([05](05-contrato-biblioteca.md) §2) |
 | `audio` | WAV de un tono de 1 s | Paso a través |
 | `pdf` | PDF válido con `pageCount` páginas numeradas | Paso a través |
-| `simulation` | HTML5 con lienzo de partículas que respeta `scale_to_fit`, lee `startTemp` del query y bloquea toda red | `…/medios/{ref}/{ruta}` → `GET /v1/medio/{ref}/{ruta}` |
+| `simulation` | HTML5 con lienzo de partículas que respeta `scale_to_fit`, lee `startTemp` del query y bloquea toda red | `…/medios/{ref}/{ruta}` → `GET /v2/courses/{courseId}/media/{mediaId}/{ruta}` |
 | `video` | `404 referencia_no_encontrada` con `sugerencia` | Paso a través con `Range` → `206 Content-Range` |
 | `…/subtitulos` · `…/transcripcion` | WebVTT y texto de ejemplo cuando el medio declara `captionsPath` / `transcriptPath` | Q-45 |
 
@@ -680,7 +683,8 @@ Hoy la tableta **sondea** `GET …/estado/` cada `intervalo_sondeo_ms` (2 s), lo
 | Suite | Qué comprueba |
 |---|---|
 | `classroom_engine.tests.test_arquitectura` (3) | Sin frameworks en dominio/aplicación; vistas sin ORM; esquema sólo `m07_*` sin contenido ni claves |
-| `classroom_engine.tests.test_curso` (19) | Endpoint de prueba, clasificación, componentes, láminas/tramos, lectura (audio/pdf), laboratorio (WebView, parámetros), seis preguntas sin claves, examen fuera de alcance, notas del docente por rol, lista por asignatura, lección/objeto sueltos, resolución automática de la fuente, fuente desconocida, biblioteca ausente, marcadores (PNG/WAV/PDF/HTML/VTT/texto, `Range`, `HEAD`), video 404; normalizador (tramos, agrupación, `sin_claves`, `localizar`); la misma vista servida por la biblioteca (host de pruebas con el manifiesto), árbol del contrato 1 y medios en paso a través |
+| `classroom_engine.tests.test_curso` (29) | Endpoint de prueba, clasificación, componentes, láminas/tramos, lectura (audio/pdf), laboratorio (WebView, parámetros), seis preguntas sin claves, examen fuera de alcance, notas del docente por rol, lista por asignatura, lección/objeto sueltos, resolución automática de la fuente, fuente desconocida, sin `link.json` («sin contenido», `fuente/`), la fuente de ejemplo no califica pero valida la forma, marcadores (PNG/WAV/PDF/HTML/VTT/texto, `Range`, `HEAD`), video 404; normalizador (tramos, agrupación, `sin_claves`, `localizar`, árbol del contrato 1); **la misma vista servida por la API de Contenido v2** (host de pruebas: `mode`/`profile`, opciones barajadas por `id`, lista, `?version=`, 401 con un solo reintento, códigos de error, estado de la fuente, medios en paso a través, evaluar por tipo con crédito parcial decimal, abierta pendiente, lote) |
+| `classroom_engine.tests.test_respuestas` (5) | La forma de `response` por tipo de pregunta (17 casos inválidos), tipo desconocido reenviado, `score`/`correct` nulos y decimales, corrección manual sin nota |
 | `classroom_engine.tests.test_sesiones` (21) | Iniciar por las cuatro vías, BR-045, DEC-035, vías mal formadas, unirse y readmitir, código equivocado, presencia, expulsar/readmitir, foco, controles, distribuciones, avisos, rotar código, suspender/reanudar, cerrar con resumen y BR-052, archivo a 24 h, padrón de MOD-001 (inscrito entra, invitado espera, 403 al estudiante) |
 
 Ejecutar: `cd backend; .venv\Scripts\python manage.py test classroom_engine` (o toda la suite sin argumento).
@@ -691,11 +695,11 @@ Ejecutar: `cd backend; .venv\Scripts\python manage.py test classroom_engine` (o 
 
 | Q | Pregunta | Estado | Propuesta |
 |---|---|---|---|
-| Q-44 | ¿Cómo publica la biblioteca el manifiesto 1.0? | **Abierta** (otro desarrollador) | `GET /v1/curso/{curso_ref}` devuelve el manifiesto con `schemaVersion`; `GET /v1/cursos` añade `esquema: "1.0"` a la ficha. Sin nueva capacidad: `curso` basta y el normalizador distingue por `schemaVersion`. El host de pruebas ya lo imita (`manifiestos=`) |
-| Q-45 | ¿Cómo se piden los medios de un paquete? | **Abierta** | Hoy el adaptador usa `GET /v1/medio/{media_ref}[/ruta]` (los `id` de `media` son únicos por paquete, no globales). Propuesta: `GET /v1/curso/{curso_ref}/medio/{media_ref}[/ruta]`, y `…/subtitulos` / `…/transcripcion` para `captionsPath` / `transcriptPath` |
+| Q-44 | ¿Cómo publica la biblioteca el manifiesto 1.0? | **Cerrada** ([05](05-contrato-biblioteca.md)) | Por la **API de Contenido v2**: `GET /v2/courses/{courseId}?version=&mode=&profile=` devuelve el curso 1.0 **recortado** (sin claves, sin `teacherNotes` para el alumno). El normalizador no cambió; la fuente `biblioteca` habla v2 con `link.json` + `Bearer` |
+| Q-45 | ¿Cómo se piden los medios de un paquete? | **Cerrada, con supuesto A-3** ([05](05-contrato-biblioteca.md) §8) | `GET /v2/courses/{courseId}/media/{mediaId}[/ruta]` en paso a través; el `mediaId` es único dentro del curso. Confirmar la ruta exacta contra `openapi.v2.json` |
 | Q-46 | Correspondencia `level.code` ↔ `nivel_clave` de MOD-001 | **Abierta** | `preschool → preescolar`, `primary → primaria`, `lower_secondary → secundaria`, `upper_secondary → bachillerato`. Decide qué política de credencial y qué familia de interfaz (DEC-039) aplican al curso |
 | Q-47 | Presentaciones `.pptx` | **Abierta** | El esquema no las trae: la presentación es `lecture.slides`. Si la biblioteca recibe `.pptx`, los convierte ella (láminas, PDF o HTML) y publica el resultado como medio; el LMS no analiza Office |
-| Q-48 | ¿Quién ejecuta el `exam` y las preguntas del manifiesto? | **Abierta** | MOD-010. El flujo actual de intentos (`/api/intentos/*`) sólo conoce la capacidad `evaluacion` del contrato 1; hay que decidir si la biblioteca expone `evaluacion`/`comprobar` por `objeto_ref` del manifiesto o si MOD-010 aprende el esquema |
+| Q-48 | ¿Quién ejecuta el `exam` y las preguntas del manifiesto? | **Parcial** ([05](05-contrato-biblioteca.md) §4 y §10) | La biblioteca califica por `POST /v2/evaluate` (`courseId`, `version`, `objectId`, `questionId`, `response` por tipo) y el aula lo expone en `POST /api/aula/cursos/{ref}/evaluar/` con la forma validada y el veredicto traducido (`puntaje` nulo o decimal, `requiere_correccion_manual` → pendiente). **Falta** que MOD-010 guarde el intento con `version` y estado `pendiente_correccion`, y el `exam` sigue siendo suyo |
 | Q-49 | `asignacion_ref` al lanzar una actividad | **Abierta** | Hoy `''`. MOD-010 debe emitir la asignación (`m10_asignacion.sesion_id`) al recibir `aula.actividad.lanzada.v1` y devolverla por el puerto `Evaluacion` |
 | Q-50 | Permisos `classroom.*` en MOD-001 | **Abierta** | Sembrar los once (`classroom.start … classroom.end`) con alcance `ASSIGNED_GROUPS` para TEACHER y `ORGANIZATION` para ADMIN; sustituir `AutorizacionPrototipo` por `PoliticaAutorizacion` |
 | Q-51 | Canal en vivo | **Abierta** | Channels con `InMemoryChannelLayer` (Q-36) y ruta `ws/aula/{sesion_id}/`, difundiendo los eventos de §6. Mientras, sondeo de 2 s |
