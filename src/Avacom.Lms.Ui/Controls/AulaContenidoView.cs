@@ -265,7 +265,8 @@ public sealed class AulaContenidoView : ContentView
             v.addEventListener('timeupdate',function(){if(fin!==null&&v.currentTime>=fin){v.pause();}});</script></body></html>
             """;
         var avisos = new VerticalStackLayout { Spacing = 6 };
-        pila.Add(Web(html, 320 * Escala, uri => AvisarFallo("video", b, uri, avisos)));
+        var web = Web(html, null, uri => AvisarFallo("video", b, uri, avisos));
+        pila.Add(ConProporcion(web, b.Ancho, b.Alto));
         pila.Add(avisos);
         if (!string.IsNullOrWhiteSpace(b.Pie)) pila.Add(Ds.Secundario(b.Pie!, 16 * Escala));
         var detalle = string.Join(" · ", new[]
@@ -536,6 +537,28 @@ public sealed class AulaContenidoView : ContentView
     }
 
     // ------------------------------------------------------------------ webview
+
+    /// <summary>
+    /// Envuelve la WebView de un video en un contenedor que le fija el alto según el ANCHO real
+    /// que le toque en cada pantalla (una tableta angosta, la columna ancha de proyección de
+    /// OPS a escala 1,15, una ventana redimensionada…), con la proporción real del archivo
+    /// (<c>ancho</c>/<c>alto</c> del medio) o 16∶9 si la biblioteca no la publicó.
+    ///
+    /// Antes el alto era un número de píxeles fijo (320 · Escala): en la columna de proyección,
+    /// mucho más ancha que una tableta, el video quedaba diminuto con espacio vacío alrededor;
+    /// aquí se recalcula en cada <c>SizeChanged</c>, así que sigue el tamaño real de la pantalla
+    /// que se esté usando en cada momento, incluida una reorientación o un redimensionado.
+    /// </summary>
+    private static View ConProporcion(WebView web, int? ancho, int? alto)
+    {
+        var proporcion = ancho is > 0 && alto is > 0 ? (double)alto!.Value / ancho!.Value : 9.0 / 16.0;
+        var contenedor = new ContentView { Content = web };
+        contenedor.SizeChanged += (_, _) =>
+        {
+            if (contenedor.Width > 0) web.HeightRequest = contenedor.Width * proporcion;
+        };
+        return contenedor;
+    }
 
     private WebView Web(string html, double? alto, Action<Uri>? alAvisar = null)
     {

@@ -229,9 +229,13 @@ def _bloque(b: dict, medios: dict[str, dict], url_medio: UrlMedio) -> dict:
         if tipo == "image":
             salida.update(texto_alternativo=medio.get("texto_alternativo"), ancho=medio.get("ancho"), alto=medio.get("alto"))
         elif tipo == "video":
+            # ancho/alto del medio (p. ej. 1280x720): la proporción real, para que el cliente
+            # ajuste el alto de la WebView al ancho que le toque en cada pantalla, sin
+            # deformar el video ni dejarlo con un tamaño fijo que no cabe o sobra.
             salida.update(desde_seg=b.get("startSec"), hasta_seg=b.get("endSec"), autoplay=bool(b.get("autoplay")),
                           duracion_seg=medio.get("duracion_seg"), subtitulos_url=medio.get("subtitulos_url"),
-                          transcripcion_url=medio.get("transcripcion_url"))
+                          transcripcion_url=medio.get("transcripcion_url"),
+                          ancho=medio.get("ancho"), alto=medio.get("alto"))
         elif tipo == "audio":
             salida.update(duracion_seg=medio.get("duracion_seg"), transcripcion_url=medio.get("transcripcion_url"))
         elif tipo == "pdf":

@@ -77,6 +77,7 @@ class CursoDeEjemploTests(TestCase):
         video = s3["bloques"][0]
         self.assertEqual((video["componente"], video["desde_seg"], video["hasta_seg"], video["autoplay"]), ("video", 0, 60, False))
         self.assertEqual(video["duracion_seg"], 150.0)
+        self.assertEqual((video["ancho"], video["alto"]), (1280, 720))  # proporción real para que el cliente ajuste el alto a la pantalla
         self.assertTrue(video["subtitulos_url"].endswith("/medios/vid-changes/subtitulos?fuente=ejemplo"))
 
     def test_la_lectura_trae_paginas_con_audio_y_pdf_por_rango(self):
