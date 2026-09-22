@@ -229,18 +229,21 @@ public sealed class AulaContenidoView : ContentView
     private View Imagen(BloqueAula b)
     {
         var pila = new VerticalStackLayout { Spacing = 8 };
-        var marco = new Border
-        {
-            StrokeThickness = 0, BackgroundColor = Ds.Lienzo, StrokeShape = new RoundRectangle { CornerRadius = Ds.RadioTarjeta },
-            HeightRequest = 360 * Escala,
-        };
         if (Absoluta is not null && !string.IsNullOrWhiteSpace(b.Url))
         {
             var imagen = new Image { Aspect = Aspect.AspectFit, Source = new UriImageSource { Uri = Absoluta(b.Url!), CachingEnabled = false } };
             if (!string.IsNullOrWhiteSpace(b.TextoAlternativo)) SemanticProperties.SetDescription(imagen, b.TextoAlternativo);
-            marco.Content = imagen;
+            var marco = new Border
+            {
+                StrokeThickness = 0, BackgroundColor = Ds.Lienzo, StrokeShape = new RoundRectangle { CornerRadius = Ds.RadioTarjeta },
+                Content = imagen,
+            };
+            pila.Add(ConProporcion(marco, b.Ancho, b.Alto));
         }
-        pila.Add(marco);
+        else
+        {
+            pila.Add(new Border { StrokeThickness = 0, BackgroundColor = Ds.Lienzo, StrokeShape = new RoundRectangle { CornerRadius = Ds.RadioTarjeta }, HeightRequest = 360 * Escala });
+        }
         if (!string.IsNullOrWhiteSpace(b.Pie)) pila.Add(Ds.Secundario(b.Pie!, 16 * Escala));
         return pila;
     }
@@ -502,25 +505,25 @@ public sealed class AulaContenidoView : ContentView
             {
                 var g = new Grid { ColumnDefinitions = [new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Star)], ColumnSpacing = 16 };
                 var izq = new VerticalStackLayout { Spacing = 6 }; var der = new VerticalStackLayout { Spacing = 6 };
-                foreach (var e in p.Izquierda ?? []) izq.Add(Ds.Pildora(e.Texto ?? e.Ref, Ds.Lienzo, Ds.Tinta, 15));
-                foreach (var e in p.Derecha ?? []) der.Add(Ds.Pildora(e.Texto ?? e.Ref, Ds.InfoSuave, Ds.Tinta, 15));
+                foreach (var e in p.Izquierda ?? []) izq.Add(Ds.Pildora(e.Texto ?? e.Ref, Ds.Lienzo, Ds.Tinta, 15 * Escala));
+                foreach (var e in p.Derecha ?? []) der.Add(Ds.Pildora(e.Texto ?? e.Ref, Ds.InfoSuave, Ds.Tinta, 15 * Escala));
                 g.Add(izq, 0, 0); g.Add(der, 1, 0);
                 return g;
             }
             case "ordenar":
             {
                 var pila = new VerticalStackLayout { Spacing = 6 };
-                foreach (var e in p.Elementos ?? []) pila.Add(Ds.Pildora($"↕  {e.Texto ?? e.Ref}", Ds.Lienzo, Ds.Tinta, 15));
+                foreach (var e in p.Elementos ?? []) pila.Add(Ds.Pildora($"↕  {e.Texto ?? e.Ref}", Ds.Lienzo, Ds.Tinta, 15 * Escala));
                 return pila;
             }
             case "abierta":
                 return new Border
                 {
                     BackgroundColor = Ds.Lienzo, StrokeThickness = 0, StrokeShape = new RoundRectangle { CornerRadius = Ds.RadioInterno }, Padding = new Thickness(16, 20),
-                    Content = Ds.Secundario($"Respuesta escrita{(p.LongitudMaxima is > 0 ? $" · hasta {p.LongitudMaxima} caracteres" : string.Empty)} · la califica el docente", 14),
+                    Content = Ds.Secundario($"Respuesta escrita{(p.LongitudMaxima is > 0 ? $" · hasta {p.LongitudMaxima} caracteres" : string.Empty)} · la califica el docente", 14 * Escala),
                 };
             default:
-                return Ds.Secundario($"Tipo de pregunta «{p.Tipo}» sin visor.", 14);
+                return Ds.Secundario($"Tipo de pregunta «{p.Tipo}» sin visor.", 14 * Escala);
         }
     }
 
@@ -539,23 +542,23 @@ public sealed class AulaContenidoView : ContentView
     // ------------------------------------------------------------------ webview
 
     /// <summary>
-    /// Envuelve la WebView de un video en un contenedor que le fija el alto según el ANCHO real
-    /// que le toque en cada pantalla (una tableta angosta, la columna ancha de proyección de
-    /// OPS a escala 1,15, una ventana redimensionada…), con la proporción real del archivo
-    /// (<c>ancho</c>/<c>alto</c> del medio) o 16∶9 si la biblioteca no la publicó.
+    /// Envuelve el video o la imagen de un bloque en un contenedor que le fija el alto según el
+    /// ANCHO real que le toque en cada pantalla (una tableta angosta, la columna ancha de
+    /// proyección de OPS a escala 1,15, una ventana redimensionada…), con la proporción real del
+    /// archivo (<c>ancho</c>/<c>alto</c> del medio) o 16∶9 si la biblioteca no la publicó.
     ///
-    /// Antes el alto era un número de píxeles fijo (320 · Escala): en la columna de proyección,
-    /// mucho más ancha que una tableta, el video quedaba diminuto con espacio vacío alrededor;
-    /// aquí se recalcula en cada <c>SizeChanged</c>, así que sigue el tamaño real de la pantalla
-    /// que se esté usando en cada momento, incluida una reorientación o un redimensionado.
+    /// Antes el alto era un número de píxeles fijo: en la columna de proyección, mucho más ancha
+    /// que una tableta, el medio quedaba diminuto con espacio vacío alrededor; aquí se recalcula
+    /// en cada <c>SizeChanged</c>, así que sigue el tamaño real de la pantalla que se esté usando
+    /// en cada momento, incluida una reorientación o un redimensionado.
     /// </summary>
-    private static View ConProporcion(WebView web, int? ancho, int? alto)
+    private static View ConProporcion(View medio, int? ancho, int? alto)
     {
         var proporcion = ancho is > 0 && alto is > 0 ? (double)alto!.Value / ancho!.Value : 9.0 / 16.0;
-        var contenedor = new ContentView { Content = web };
+        var contenedor = new ContentView { Content = medio };
         contenedor.SizeChanged += (_, _) =>
         {
-            if (contenedor.Width > 0) web.HeightRequest = contenedor.Width * proporcion;
+            if (contenedor.Width > 0) medio.HeightRequest = contenedor.Width * proporcion;
         };
         return contenedor;
     }

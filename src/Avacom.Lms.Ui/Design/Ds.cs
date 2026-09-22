@@ -241,7 +241,7 @@ public static class Ds
         StrokeThickness = 0,
         StrokeShape = new RoundRectangle { CornerRadius = RadioPildora },
         Padding = new Thickness(12, 6),
-        Content = new Label { Text = texto, FontSize = tamano, FontAttributes = FontAttributes.Bold, TextColor = tinta ?? TintaSobre(fondo) },
+        Content = new Label { Text = texto, FontSize = tamano, FontAttributes = FontAttributes.Bold, TextColor = tinta ?? TintaSobre(fondo), LineBreakMode = LineBreakMode.WordWrap },
         VerticalOptions = LayoutOptions.Center,
     };
 
