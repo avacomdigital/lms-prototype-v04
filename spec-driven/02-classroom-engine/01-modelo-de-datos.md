@@ -390,6 +390,116 @@ planificada ─► abierta ─► cerrada ─► archivada  esperando ─► con
 
 Transiciones autorizadas en `dominio.sesion.TRANSICIONES`; cualquier otra responde `409 transicion_invalida` o `409 sesion_cerrada`. Una sesión `suspendida` conserva código, foco y participantes (que pasan a `reconectando`); no admite foco, controles, distribuciones ni avisos hasta reanudar, pero sí que las tabletas vuelvan a presentarse.
 
+Lo anterior definió cada tabla. Lo que sigue analiza ese mismo modelo desde nueve ángulos de diseño relacional, para dejar explícito el razonamiento detrás de cada decisión.
+
+### 5.12 · Lectura de dominio: qué problema resuelve cada grupo de tablas
+
+| Grupo | Tablas | Pregunta del dominio que resuelve |
+|---|---|---|
+| El hecho de la clase | `m07_sesion` | ¿Qué clase está ocurriendo, iniciada por quién, para qué grupo, a partir de qué contenido, y en qué estado del ciclo de vida? |
+| Quién está presente | `m07_participante`, `m07_presencia` | ¿Qué tabletas entraron, en qué estado técnico están ahora, y cuál es su bitácora de conexión? (presencia técnica, no asistencia académica) |
+| Qué se está mostrando | `m07_foco` | ¿Qué está proyectando el profesor en este instante, y qué se proyectó antes? |
+| Qué restricciones rigen | `m07_control` | ¿Deben las tabletas seguir al profesor, y están las pantallas bloqueadas, desde cuándo y hasta cuándo? |
+| Qué se envió a los estudiantes | `m07_distribucion`, `m07_distribucion_entrega` | ¿Qué recurso o actividad se repartió, a quién, y quién ya confirmó recibirlo? |
+| Qué se comunicó | `m07_aviso` | ¿Qué mensaje le mandó el profesor al grupo o a un estudiante puntual? |
+| Cómo terminó | `m07_resumen` | ¿Cuánto duró la clase y qué pasó en ella, en un solo vistazo, cinco años después? |
+| Qué le contamos a los demás | `m07_evento_salida` | ¿Qué hechos de esta clase necesita saber el resto del sistema? |
+
+El hilo común es la **regla de oro** (artículo 14): estas diez tablas describen exclusivamente lo que ocurre *alrededor* del contenido — nunca el contenido mismo, que vive en AVACOM Biblioteca (§1, §5.19).
+
+### 5.13 · Cardinalidad de las relaciones, y por qué
+
+| Relación | Cardinalidad | Por qué es así |
+|---|---|---|
+| `sesion` → `participante` | 1:N | Una clase reúne a muchas tabletas; cada una es una fila, aunque se reconecte varias veces (la reconexión reutiliza la misma fila, `ux_m07_part`) |
+| `participante` → `presencia` | 1:N | Bitácora append-only: cada cambio de estado técnico (conectado, reconectando, salió…) es una fila nueva, nunca una actualización — de aquí sale `conectados_maximo` |
+| `sesion` → `foco` | 1:N (con **uno vigente**) | El foco cambia muchas veces durante la clase (BR-049) y BR-050 exige conservar el historial; «cuál es el vigente» es un índice parcial (§5.18), no la cardinalidad |
+| `sesion` → `control` | 1:N (a lo sumo **dos abiertos** a la vez) | Hay dos tipos de control (`seguimiento`, `bloqueo`) y cada uno se abre y cierra por separado; el historial completo queda, sólo se exige un abierto **por tipo** |
+| `sesion` → `distribucion` | 1:N | Una clase reparte varios recursos y lanza varias actividades a lo largo de la hora |
+| `distribucion` ↔ `participante` | **N:M** vía `distribucion_entrega` | Cada distribución llega a varios estudiantes y cada estudiante recibe varias distribuciones a lo largo de la clase; el cruce es la única forma de saber, por pareja, si *ese* estudiante ya confirmó *esa* entrega |
+| `sesion` → `aviso` | 1:N | Varios avisos por clase |
+| `aviso` → `participante` | **N:1 opcional** | `participante_id` nulo significa «para todo el grupo»; no nulo, «para esta tableta». La misma tabla resuelve un aviso general o dirigido sin necesitar dos tablas de avisos |
+| `sesion` ↔ `resumen` | **1:0..1**, PK compartida | Igual que `usuario`↔`persona` en `acceso` (§3.20 de ese módulo): nace una sola vez, en un instante preciso del ciclo de vida (el cierre), nunca antes y nunca más de una vez |
+| `sesion` → `evento_salida` | 0:N, **sin FK** | El outbox se correlaciona por `agregado_id` (texto), no por clave foránea — ver §5.15 |
+
+No hay ninguna relación **1:1 obligatoria desde el nacimiento** en el módulo: incluso `resumen`, la más cercana, sólo existe **después** de cerrar (`CerrarSesion`), nunca al abrir.
+
+### 5.14 · La tabla asociativa: `m07_distribucion_entrega`
+
+Es la única N:M genuina del módulo — reflejo de que MOD-007 es, ante todo, una jerarquía dueño→partes (§5.17), no una red de relaciones cruzadas como `acceso`.
+
+| Atributo propio | Por qué hace falta la tabla asociativa |
+|---|---|
+| `estado` (`pendiente` / `entregado` / `fallido`) | El avance de entrega **no es** un atributo ni de la distribución (una sola para todo el grupo) ni del participante (que puede tener varias entregas pendientes a la vez): es un hecho exclusivo de *ese* cruce |
+| `confirmada_en` | Cuándo, para esa pareja en particular, se cerró el ciclo — distinto para cada estudiante aunque la distribución sea la misma |
+| `intentos` | Cuántas veces se reintentó la confirmación de *ese* estudiante con *esa* distribución |
+
+Sin esta tabla, «mostrar la barra de progreso de la distribución» (CAP-040) sería imposible de representar: hace falta una fila por pareja para poder agregarlas.
+
+### 5.15 · PK, FK, identidad e integridad referencial
+
+**Claves.** El módulo repite el patrón de `acceso` (§3.22 de ese documento): UUID para todo lo que otro módulo, el cliente MAUI o un evento pueden necesitar señalar por separado (`sesion`, `participante`, `foco`, `control`, `distribucion`, `aviso` — los seis tienen `id` explícito); `BigAutoField` implícito donde la fila jamás se referencia por sí sola y sólo importa como parte de una bitácora o de un cruce (`presencia`, `distribucion_entrega`, `evento_salida` — ninguna declara `id`); y PK compartida en `resumen.sesion_id`, la misma técnica de partición 1:1 que `persona` en `acceso`, aquí usada para una extensión temporal (el cierre) en vez de una extensión de confidencialidad.
+
+Un caso propio del módulo: `participante.id` no es sólo una PK técnica — es, por diseño, el **identificador de participación** que la tableta guarda y vuelve a presentar al reconectar (FUN-077). Un UUID generado como clave sustituta se **promueve** a token de dominio visible por el cliente, porque el dominio necesita un identificador estable, impredecible y ya único que el aparato pueda conservar sin pedir uno nuevo cada vez.
+
+**Integridad referencial física, dentro del módulo.** Todo lo que cuelga de `m07_sesion` usa `CASCADE` (`participante`, `foco`, `control`, `distribucion`, `aviso`) y `distribucion_entrega` usa `CASCADE` hacia sus dos padres (`distribucion`, `participante`): son composición real, la sesión es la raíz del agregado (§5.17) y sus partes no tienen sentido sin ella. En la práctica esa cascada casi nunca se ejecuta — CV-05 hace que nadie borre una `m07_sesion` — pero declararla es la integridad correcta igual: una fila huérfana sería peor que una que nunca se produce.
+
+**Integridad referencial lógica, hacia fuera del módulo.** Aquí está la diferencia real frente a `acceso`: `grupo_id`, `profesor_id`, `persona_id`, `dispositivo`, `sesion_usuario_id` y todos los `*_ref` de curso/lección/objeto/media **no son FK** — son texto plano (CV-08). No es un descuido: es la decisión explícita de §4.6 («acopla MOD-007 a las tablas de otro módulo y rompe el modo sin padrón, Q-34»). La integridad no desaparece, **se traslada**: la valida el puerto `Identidad` contra `acceso` al escribir (`esta_inscrito`) y el puerto `FuenteDeCursos` contra la biblioteca en vivo antes de guardar un foco o una distribución (`dominio.curso.localizar`, §2.4). El mismo backend usa entonces **dos estrategias de integridad referencial a propósito**: física (con `FOREIGN KEY` reales) dentro de un módulo que posee sus datos, y de aplicación (con un puerto que valida antes de escribir) en la frontera entre módulos que no deben acoplarse por esquema. Ambas son integridad referencial; sólo cambia dónde se hace cumplir.
+
+### 5.16 · Por qué el modelo está en 3FN
+
+**1FN/2FN**: igual que en `acceso` — columnas atómicas, PK de una sola columna en las diez tablas (o compartida en `resumen`, que sigue siendo una sola columna), así que no hay dependencia parcial posible.
+
+**3FN**, con el mismo cuidado en los casos que a primera vista parecen copias:
+
+- `curso_rotulo`, `leccion_rotulo`, `objeto_rotulo`, `grupo_rotulo`, `profesor_rotulo` **parecen** redundantes (copian un título que también existe en la biblioteca o en `acceso`) pero no son una dependencia transitiva porque **no se actualizan nunca** tras la escritura inicial (§1: «los rótulos no deciden nada»): son una fotografía histórica, no un valor que deba mantenerse sincronizado. La prueba de que no violan 3FN es que **pueden divergir** legítimamente del valor actual en la fuente — si un curso cambia de título mañana, la clase de hoy sigue mostrando el título con el que se dio, a propósito. Es el mismo patrón que una factura que conserva el nombre del producto tal como se llamaba el día de la venta.
+- `m07_foco` y `m07_distribucion` repiten `curso_ref`/`curso_version` aunque `m07_sesion` ya los tiene: no es redundancia, es un hecho propio de cada evento — qué versión del curso estaba vigente en **ese** instante de proyección o de reparto, que en principio podría no coincidir con la versión con la que arrancó la sesión.
+- No existe un contador `sesion.participantes_actual` ni `sesion.foco_actual_id`: ambos se calculan (`COUNT`, índice parcial `ux_m07_foco_vigente`) en vez de mantenerse como columna cacheada — el mismo criterio que evitó `usuario.credencial_activa_id` en `acceso`.
+
+### 5.17 · Tablas transitivas y forma del modelo
+
+**Tabla transitiva** (de tránsito obligado): `m07_distribucion_entrega` es la única — `distribucion` y `participante` sólo se conectan a través de ella (§5.14).
+
+**Forma del modelo.** De los dos módulos analizados, `classroom_engine` es el que más se acerca, visualmente, a una **estrella**: `m07_sesion` es un centro único del que cuelgan directamente cinco tablas satélite (`participante`, `foco`, `control`, `distribucion`, `aviso`), sin que esas cinco dependan entre sí (salvo `distribucion_entrega`, que conecta dos de ellas). No hay cadena de dependencias-de-dependencias como la de `acceso` (`miembro_grupo → grupo → politica_credencial → organizacion`): aquí casi todo está a un salto de la sesión. Dicho eso, **sigue sin ser un esquema en estrella en el sentido de un almacén de datos**: estas tablas se escriben continuamente mientras la clase ocurre (no se cargan una vez por ETL), llevan sus propias reglas de integridad (`CHECK`, índices parciales) y no están desnormalizadas para lectura agregada. Lo interesante es que **`m07_resumen` es, literalmente, la fila de hechos que un modelo en estrella real querría**: llega pre-agregada (conteos, duración, origen de cierre) exactamente en el grano «una fila por sesión de clase», calculada una sola vez al cerrar y nunca más tocada. Si algún módulo de reportes necesita un data mart de actividad de aula, `m07_resumen` es casi directamente su tabla de hechos; el resto de `m07_*` sería la fuente para construir dimensiones (`dim_sesion`, `dim_participante`) o hechos de grano más fino (uno por foco, uno por distribución).
+
+### 5.18 · Qué consulta justifica cada índice
+
+| Índice | Consulta que resuelve |
+|---|---|
+| `ux_m07_codigo` (única, `codigo_union` con estado en `ACTIVAS`) | **La consulta más caliente del módulo**: una tableta teclea seis dígitos y hay que encontrar la sesión activa en O(1) (`UnirseASesion`, FUN-065) |
+| `ux_m07_grupo_activa` / `ux_m07_profesor_abierta` | Antes de iniciar: «¿mi grupo ya tiene una clase activa?» (DEC-035) / «¿ya tengo yo una clase abierta?» (BR-045) — el mismo índice que impone la regla sirve para consultarla |
+| `ix_m07_sesion_prof` (`profesor_id, iniciada_en`) | Historial de clases de un profesor, ordenado — panel docente |
+| `ix_m07_sesion_estado` (`estado, finalizada_en`) | El barrido periódico que archiva las cerradas hace más de 24 h (`ArchivarSesiones`) |
+| `ux_m07_part` (única, `sesion, persona_id`) | «¿Esta persona ya es participante?» al unirse o reconectar, sin duplicar la fila (FUN-077) |
+| `ix_m07_part_estado` (`sesion, estado`) | El conteo en vivo (conectados/esperando/reconectando) que pide **cada sondeo de 2 segundos** de cada tableta y del panel del profesor — probablemente el índice de mayor tráfico de todo el backend |
+| `ix_m07_presencia` (`participante, momento`) | Reconstruir `conectados_maximo` y la línea de tiempo de conexión de un participante al cerrar la sesión (`m07_resumen`) |
+| `ux_m07_foco_vigente` (única, `sesion` con `vigente=True`) | «¿Qué se está mostrando ahora?» — otra consulta de sondeo de 2 s, en cada tableta conectada |
+| `ix_m07_foco` (`sesion, declarado_en`) | Historial de foco para el panel docente («qué vimos, en orden») |
+| `ux_m07_control_abierto` (única, `sesion, tipo` con `hasta IS NULL`) | «¿Está el bloqueo o el seguimiento activo ahora?» — se sondea junto con el foco |
+| `ix_m07_dist_abiertas` (`sesion, cerrada_en`) | Qué distribuciones siguen abiertas — el aviso `409 actividades_abiertas` de `CerrarSesion` (FUN-079) depende de esta consulta |
+| `ux_m07_entrega` (única, `distribucion, participante`) | «¿Ya confirmó este estudiante esta distribución?» — la barra de progreso de CAP-040 se agrupa sobre este índice |
+| `ix_m07_aviso` (`sesion, enviado_en`) | El parámetro `avisos_desde` de `estado/`: «avisos nuevos desde la última vez que pregunté» |
+| `ix_m07_outbox` (`publicado_en, creado_en`) | El mismo patrón de relevo de outbox que en `acceso` |
+
+La observación que vale la pena resaltar: al menos tres de estos índices (`ix_m07_part_estado`, `ux_m07_foco_vigente`, `ux_m07_control_abierto`) se ejecutan una vez cada dos segundos por cada tableta conectada (§9.6) — son, con diferencia, los índices más exigidos de los dos módulos analizados, y están diseñados exactamente para esa carga: lecturas puntuales por sesión, resueltas por un índice parcial o compuesto, nunca un recorrido completo de la tabla.
+
+### 5.19 · Linaje de datos: de dónde viene cada dato y cuál es la fuente de verdad
+
+| Dato | Fuente de verdad | Cómo llega a `classroom_engine` |
+|---|---|---|
+| Asignatura, curso, lección, objeto, lámina, pregunta, medio | **AVACOM Biblioteca**, exclusivamente | Se lee en vivo en cada petición por el puerto `FuenteDeCursos` (adaptador `FuenteBiblioteca`, API de Contenido v2 con `link.json` + `X-Avacom-Token`); MOD-007 **nunca** la copia a una tabla — sólo congela `*_ref` + `*_rotulo` en el instante en que se usó (§5.16) |
+| Persona, grupo, inscripción | **`acceso`** (MOD-001/002) | Vía el puerto `Identidad`; la referencia (`persona_id`, `grupo_id`) es el mismo `usuario.id`/`grupo.id` que ya es autoritativo en ese módulo (frontera lógica, no física — Q-52) |
+| Qué pasó en la clase (quién entró, qué se mostró, qué se repartió, qué se avisó, cómo cerró) | **Este módulo, `m07_*`** | Es el único punto del backend donde estos hechos se originan; no hay una fuente anterior que reflejar |
+| Nota, intento, corrección | **Fuera de alcance** (MOD-010/`expediente m10_*`) | MOD-007 sólo pide `preparar_asignacion`/`intentos_abiertos` por el puerto `Evaluacion`; no guarda ni un puntaje |
+| Marca de tiempo de cada `*_en` | El reloj del nodo, por el puerto `Reloj` (BR-062) | Nunca el reloj del cliente: cada respuesta añade `servidor_en` para que la tableta se alinee, en vez de que el dispositivo dicte cuándo pasó algo |
+| Eventos `aula.*.v1` | El hecho ya escrito en `m07_*`, en la misma transacción | `m07_evento_salida` es el mecanismo de propagación, no una fuente adicional — igual que en `acceso` (§3.26 de ese documento) |
+
+En síntesis, `classroom_engine` es intencionalmente el módulo con **menos fuentes de verdad propias** de los tres del backend: posee un único tipo de dato genuino (la sesión de clase y lo que ocurre en ella) y para todo lo demás actúa como consumidor disciplinado de otros dueños — exactamente lo que exige la regla de oro del artículo 14.
+
+### 5.20 · Conclusión: cómo el modelo resuelve el dominio del aula
+
+MOD-007 tiene un solo agregado (`m07_sesion`) y diez tablas cuya única función es dejar constancia, con integridad y sin ambigüedad, de todo lo que ese agregado vive entre que se abre y se archiva. La forma casi estelar del modelo (§5.17) no es casualidad: refleja que el dominio real **es** así — una clase con partes que le pertenecen, no una red de entidades independientes como en `acceso`. Por eso el módulo necesita una sola tabla asociativa (`distribucion_entrega`) en vez de cuatro, y por eso puede permitirse `CASCADE` en casi todas sus FK internas sin miedo: nada fuera de la sesión depende de sus partes. La disciplina más importante, sin embargo, no está en lo que el modelo guarda, sino en lo que **se niega a guardar**: ninguna tabla de curso, ninguna clave de corrección, ninguna FK hacia contenido. Esa renuncia —sostenida con referencias lógicas validadas por puertos en vez de claves foráneas físicas (§5.15)— es lo que le permite a la biblioteca cambiar de versión, de esquema o de proveedor sin que una sola fila de `m07_*` deje de tener sentido. El modelo resuelve el dominio del aula precisamente por lo poco que decide poseer.
+
 ---
 
 ## 6 · Eventos que publica

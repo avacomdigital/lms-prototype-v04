@@ -328,6 +328,142 @@ El pase de emergencia del examen: `tipo` (`DISPOSITIVO` · `CODIGO`), `secreto_h
 
 `agregado_tipo`, `agregado_id`, `tipo_evento` (`identidad.*.v1`), `carga` (sin PII ni secretos), `creado_en`, `publicado_en`, `intentos`. Se escribe en la **misma transacción** que el hecho (Parte VII del documento de Arquitectura).
 
+Lo anterior definió cada tabla. Lo que sigue analiza ese mismo modelo desde nueve ángulos de diseño relacional, para dejar explícito el razonamiento detrás de cada decisión.
+
+### 3.19 · Lectura de dominio: qué problema resuelve cada grupo de tablas
+
+Las dieciocho tablas no son dieciocho ideas sueltas: son la respuesta a nueve preguntas que el aula sin internet tiene que poder contestar localmente.
+
+| Grupo | Tablas | Pregunta del dominio que resuelve |
+|---|---|---|
+| Instalación | `m01_organizacion` | ¿En qué colegio estoy y con qué idioma, país y huso horario opera? |
+| Reglamento de acceso | `m01_politica_credencial` | ¿Con qué se entra aquí (PIN, contraseña, avatar) y qué tan estricto es, por perfil y por nivel educativo? |
+| Autorización (RBAC) | `m01_permiso`, `m01_rol`, `m01_rol_permiso` | ¿Qué puede hacer cada tipo de usuario, y hasta qué alcance? |
+| Identidad de la persona | `m01_usuario`, `m01_persona`, `m01_identificador_usuario` | ¿Quién es esta cuenta, quién es la persona detrás (sin exponerla) y con qué documentos se la reconoce? |
+| Secreto | `m01_credencial` | ¿Con qué prueba esta persona que es quien dice ser? |
+| Concesión de rol y de permiso | `m01_usuario_rol`, `m01_usuario_permiso` | ¿Qué rol tiene esta persona, en qué alcance y desde cuándo; y qué permiso extra se le concedió, por qué y hasta cuándo? |
+| Padrón | `m01_grupo`, `m01_miembro_grupo` | ¿Quién enseña y quién estudia en qué grupo, con qué reglamento propio? |
+| Sesión y dispositivo | `m01_dispositivo`, `m01_sesion` | ¿Qué tableta es cuál, y quién tiene abierta ahora mismo una sesión en ella? |
+| Emergencia | `m01_autorizacion_temporal` | ¿Cómo entra a un examen quien olvidó su clave, sin correo ni SMS? |
+| Evidencia | `m01_intento_acceso`, `m01_evento_salida` | ¿Qué pasó exactamente en cada intento de entrar, y qué le contamos al resto del sistema? |
+
+El hilo común: **nada de esto puede depender de un servidor remoto** (R-07). Cada tabla existe porque una de estas preguntas tiene que resolverse con una consulta al SQLite del propio nodo, nunca con una llamada de red.
+
+### 3.20 · Cardinalidad de las relaciones, y por qué
+
+| Relación | Cardinalidad | Por qué es así |
+|---|---|---|
+| `organizacion` → `politica_credencial` | 1:N | Un colegio define varias políticas: una por perfil y, opcionalmente, excepciones por nivel educativo (BR-023/024) |
+| `organizacion` → `rol` | 0/1:N | Nula cuando el rol es plantilla de sistema (los cinco de fábrica); no nula cuando el colegio define uno propio. Una FK opcional modela «global vs. propio del colegio» sin dos tablas |
+| `organizacion` → `usuario`, `grupo`, `dispositivo` | 1:N | Toda cuenta, grupo y tableta pertenece a exactamente una instalación; no hay multi-tenencia cruzada |
+| `rol` → `usuario` | 1:N | El **rol principal** (el que decide el menú si no se elige otro al entrar); una persona tiene un solo rol principal a la vez |
+| `rol` ↔ `permiso` | **N:M** vía `rol_permiso` | Un rol agrupa muchos permisos y un permiso lo usan muchos roles; cada combinación además fija su propio alcance, así que no basta un par de FK |
+| `usuario` ↔ `persona` | **1:0..1**, PK compartida | Ver §3.22: es una partición vertical de la misma entidad, no dos entidades independientes |
+| `usuario` → `identificador_usuario` | 1:N | Una persona puede entrar por DNI, por matrícula o por clave de instalación a la vez (DEC-048); todas viven vigentes en paralelo |
+| `usuario` → `credencial` | 1:N (con una **vigente**) | CV-05 impide sobrescribir el secreto anterior: cambiar la contraseña inserta una fila nueva y marca `sustituida_en` en la anterior; «una activa» es una regla de índice (§3.25), no la cardinalidad |
+| `usuario` ↔ `rol` (asignaciones) | **N:M cualificada** vía `usuario_rol` | BR-021: una persona acumula varios roles vigentes, cada uno con su propio alcance y vigencia; en cada sesión sólo usa uno |
+| `usuario` ↔ `permiso` (escaladas) | **N:M cualificada** vía `usuario_permiso` | BR-101: un permiso adicional puntual, con motivo y caducidad obligatoria, que no pertenece al rol |
+| `grupo` ↔ `usuario` | **N:M cualificada** vía `miembro_grupo` | Un grupo tiene varios estudiantes y un docente puede repetirse en varios grupos; el papel (`ESTUDIANTE`/`DOCENTE`) cualifica cada par |
+| `usuario` → `sesion` | 1:N (con **una vigente**, INV-011) | Igual que credencial: el historial de sesiones no se borra; la unicidad de «la vigente» es un índice parcial |
+| `dispositivo` → `sesion`, `intento_acceso`, `autorizacion_temporal` | 0/1:N | Una tableta compartida ve pasar muchas sesiones; el campo es opcional porque también se entra sin declarar dispositivo |
+| `usuario` → `autorizacion_temporal` | 1:N, **en dos papeles** | `usuario` (quien la recibe) y `otorgada_por` (quien la concede) son dos FK distintas a la misma tabla, que nunca pueden ser la misma fila (regla de negocio) |
+| `autorizacion_temporal` → `sesion` | **1:0..1**, FK única (no PK compartida) | Ver §3.22: la autorización nace antes que la sesión y puede no llegar a usarse nunca; por eso no comparte clave |
+| `usuario` → `usuario` (`creado_por`, `vinculado_a`) | 1:N, recursiva, **dos veces** | Dos hechos distintos sobre la misma tabla: quién dio de alta a quién (auditoría) y qué cuenta definitiva absorbió a cuál provisional (JRN-007). Cada una es una FK independiente con su propio `related_name` |
+
+Ninguna relación **1:1 pura y obligatoria** existe en el módulo: hasta `usuario`↔`persona`, la más cercana, se modela como 1 a 0..1 porque la partición es intencional (§3.22), no una regla de negocio que exija exactamente una fila en ambos lados desde el primer instante.
+
+### 3.21 · Tablas asociativas: cuáles son y si la relación tiene atributos propios
+
+| Tabla asociativa | Resuelve | Atributos propios (por qué no basta un par de FK) |
+|---|---|---|
+| `m01_rol_permiso` | `rol` ↔ `permiso` | `alcance`: el mismo permiso puede concederse a un rol con techo `ASSIGNED_GROUPS` y a otro con `ORGANIZATION`. Sin este atributo, el alcance tendría que vivir en `permiso` (uno solo para todos los roles) o en `rol` (uno solo para todos los permisos); ninguna de las dos es correcta |
+| `m01_usuario_rol` | `usuario` ↔ `rol` | `alcance_tipo`, `alcance_id`, `desde`, `hasta`, `asignado_por`, `revocado_en`. La pareja (usuario, rol) por sí sola ni siquiera es única: la misma persona puede tener el rol TEACHER dos veces, con dos alcances distintos (dos grupos) y dos vigencias distintas. La unicidad real es condicional — `UNIQUE(usuario, rol, alcance_tipo, alcance_id) WHERE revocado_en IS NULL` — por eso la tabla necesita su propia PK sustituta en vez de una PK compuesta |
+| `m01_usuario_permiso` | `usuario` ↔ `permiso` (escalada) | `alcance`, `otorgado_por`, `motivo`, `vigente_desde`, `vigente_hasta`, `revocado_en`. Mismo razonamiento que la anterior, con un atributo que no existe en `usuario_rol`: `motivo`, obligatorio porque BR-101 exige poder explicar por qué alguien recibió un permiso que su rol no le da |
+| `m01_miembro_grupo` | `grupo` ↔ `usuario` | `papel` (`ESTUDIANTE`/`DOCENTE`), `desde`, `hasta`. Aquí la unicidad **no** está filtrada por vigencia (`UNIQUE(grupo, usuario, papel)` a secas): la membresía se trata como un único hecho con intervalo abierto/cerrado que se reabre al reingresar, no como una bitácora de altas y bajas. Es una simplificación deliberada frente a `usuario_rol`/`usuario_permiso`: pertenecer a un grupo no necesita el mismo rastro de auditoría que un permiso o un rol con alcance de seguridad |
+
+Las cuatro son «tablas puente» en sentido estricto: existen exclusivamente porque la relación en sí misma **tiene información** que no pertenece a ninguna de las dos entidades que conecta. Ninguna es un simple cruce de identificadores.
+
+### 3.22 · PK, FK, identidad e integridad referencial
+
+**Tres estrategias de clave, cada una donde corresponde:**
+
+| Estrategia | Dónde se usa | Por qué |
+|---|---|---|
+| **UUID (texto, char36)** | `organizacion`, `politica_credencial`, `rol`, `usuario`, `identificador_usuario`, `credencial`, `usuario_permiso`, `usuario_rol`, `grupo`, `miembro_grupo`, `dispositivo`, `autorizacion_temporal` | Son entidades que **se referencian desde fuera** de su propia tabla (API, JWT, otros módulos vía `usuario.id` como `persona_id`). El UUID se genera en el dominio sin depender de que la base asigne el siguiente número — indispensable en un nodo que puede operar semanas sin sincronizarse con nadie (CV-02) |
+| **Clave natural** | `permiso.codigo` (`identity.password.reset`…); `sesion.id` (es el `jti` del JWT, no un UUID adicional) | `permiso` es un catálogo cerrado y sembrado por código, no datos de usuario: usar el propio código de negocio como PK evita una columna sustituta que nadie necesitaría y hace autoexplicativa cada fila de `rol_permiso`/`usuario_permiso` (`permiso_codigo`) sin JOIN. `sesion.id` reutiliza un identificador que **ya existe** en el estándar (el `jti` del token): crear un UUID aparte y mantener una tabla de traducción sería una indirección sin beneficio |
+| **Autoincremental (`BigAutoField` implícito)** | `rol_permiso`, `intento_acceso`, `evento_salida` (ninguna declara `id` explícito) | Son las únicas tablas del módulo que nunca se referencian por `id` desde otra tabla u otro módulo, y son de alta escritura y **append-only**. Un entero creciente ordena físicamente la inserción — el mismo orden en que se necesitan leer (`intento_acceso` para el cálculo de bloqueo por ventana de tiempo, `evento_salida` para el relevo del outbox) — mientras que un UUID v4 fragmentaría el índice sin aportar nada, porque nadie pide «la fila con `id = X`» de estas tres tablas |
+
+**Integridad referencial por política de borrado, no uniforme:**
+
+| Política | Ejemplos | Significado de negocio |
+|---|---|---|
+| `CASCADE` | `organizacion → *`, `usuario → persona/identificador/credencial/usuario_rol/usuario_permiso/sesion/autorizacion_temporal`, `grupo → miembro_grupo`, `rol → rol_permiso` | Composición real: la fila hija **no tiene sentido** sin su dueño. Es la relación «parte de» |
+| `PROTECT` | `usuario.rol`, `rol_permiso.permiso`, `usuario_permiso.permiso`, `usuario_rol.rol`, `usuario_permiso.otorgado_por` | La fila referenciada **sostiene una decisión vigente**; borrarla en cascada ocultaría un permiso o un rol que sigue concedido. Obliga a resolver el conflicto explícitamente en vez de perder el rastro en silencio |
+| `SET_NULL` | `usuario.creado_por`, `usuario.vinculado_a`, `grupo.politica_credencial`, `sesion.dispositivo`, `sesion.rol`, `autorizacion_temporal.dispositivo/sesion`, `intento_acceso.dispositivo/autorizacion`, `credencial.creado_por` | Contexto o procedencia, no identidad: la fila principal **sobrevive** aunque se pierda el dato de quién u qué la originó |
+
+Esta separación en tres políticas es en sí misma integridad referencial declarativa: el motor rechaza o resuelve cada borrado según el **papel** de la relación, sin lógica de aplicación adicional para decidirlo.
+
+**Identidad:** ninguna tabla usa una clave natural insegura (documento, correo) como PK — precisamente porque esos valores son PII y viven cifrados (`identificador_usuario.valor_cifrado`); la identidad **direccionable** siempre es el UUID interno (`usuario.id`, BR-020), y el documento sólo sirve para *encontrar* esa fila a través del índice ciego HMAC (§3.25), nunca para *ser* la clave.
+
+### 3.23 · Por qué el modelo está en 3FN
+
+**1FN.** Toda columna es atómica: no hay listas ni pares repetidos dentro de una fila. `usuario_permiso`/`usuario_rol` resuelven la multiplicidad (varios roles, varios permisos por persona) con **filas adicionales**, no con una columna `roles = "TEACHER,ADMIN"`.
+
+**2FN.** Todas las tablas tienen clave primaria de una sola columna (UUID, código o autoincremental); no existe clave compuesta en el módulo, así que no puede haber dependencia **parcial** de una PK compuesta: no hay nada de qué depender «a medias». Donde el negocio exige una combinación única (`rol_permiso`, `usuario_rol`, `miembro_grupo`…), esa combinación se declara como `UniqueConstraint` **además** de la PK sustituta, no en lugar de ella — precisamente para no verse forzado a una PK compuesta que reintroduciría el problema.
+
+**3FN.** Ningún atributo no clave depende de otro atributo no clave; depende sólo de la clave completa:
+
+- `usuario` no guarda el nombre de su organización ni el de su rol — sólo los FK. Mostrar «IE San José» exige un JOIN; guardarlo en `usuario` sería una dependencia transitiva clásica (`usuario.id → organizacion_id → organizacion.nombre`) y un valor que se desincroniza el día que el colegio se renombra.
+- `persona` está separada de `usuario` **no por normalización** (las dos tienen el mismo determinante, `usuario_id`; fusionarlas no violaría 3FN) sino por una frontera de confidencialidad: aislar en una tabla propia lo que va cifrado permite rotar sus claves, respaldar o purgar PII sin tocar la cuenta, y limitar qué consulta puede tocarla. Normalización y aislamiento de PII son dos fuerzas distintas que aquí señalan en la misma dirección.
+- `identificador_usuario.valor_hmac` **parece** depender de `valor_cifrado` (ambos codifican el mismo documento), pero ninguno se calcula a partir del otro dentro de la base de datos: los dos son funciones independientes del valor real, que no se almacena en ninguna columna. No hay dependencia intra-fila que viole 3FN porque el determinante común (el documento en claro) es externo al esquema.
+- `sesion.rol_id` no se deriva de `usuario.rol_id`: es el **rol efectivo** elegido al entrar (BR-021), un hecho propio de la sesión que con frecuencia coincide con el rol principal pero es conceptualmente independiente — guardarlo es correcto, no redundante.
+- No existe una columna `usuario.credencial_activa_id` ni `usuario.ultima_sesion_id`: ambos «actuales» se resuelven por índice parcial (§3.25) sobre la tabla de detalle, evitando el antipatrón de un puntero de caché en el padre que habría que mantener sincronizado en cada escritura del hijo.
+
+### 3.24 · Tablas transitivas y forma del modelo
+
+**Tablas transitivas** (de tránsito obligado): son las mismas cuatro tablas asociativas de §3.21 — `rol_permiso`, `usuario_rol`, `usuario_permiso`, `miembro_grupo`. `rol` y `permiso`, por ejemplo, **sólo** se alcanzan uno al otro transitando por `rol_permiso`; no hay ni puede haber una FK directa entre ellos, porque la relación misma tiene atributos (§3.21).
+
+Aparte de ésas, el grafo de FK tiene caminos de **varios saltos** que no son tránsito obligado sino simple navegación — y ninguno copia un atributo a lo largo del camino, así que ninguno compromete la 3FN (§3.23): `usuario → grupo (miembro_grupo) → organizacion` coexiste con `usuario → organizacion` directo (son dos hechos distintos: la instalación de la cuenta y la pertenencia a un grupo de esa instalación); `miembro_grupo → grupo → politica_credencial → organizacion` es la cadena que resuelve qué reglamento aplica, y cada salto es una FK, no un valor copiado.
+
+**¿Estrella o copo de nieve?** Ninguno de los dos, con propiedad: este es un esquema **transaccional (OLTP) en 3FN**, no un modelo dimensional para analítica. Un esquema en estrella exige dimensiones **desnormalizadas** conectadas directamente a un hecho central; aquí ocurre lo contrario — cada dimensión (`organizacion`, `rol`, `permiso`, `grupo`, `dispositivo`) está, a propósito, normalizada y puede depender a su vez de otra (`grupo` depende de `organizacion` y de `politica_credencial`), que es precisamente la forma que en un almacén de datos se llamaría **copo de nieve**. Si algún día un módulo de reportes necesita un modelo dimensional sobre éste, el trabajo sería el inverso al habitual: **aplanar** estas cadenas normalizadas en dimensiones anchas (`dim_usuario` con el nombre de la organización y del rol ya incluidos) y convertir `m01_intento_acceso` y `m01_evento_salida` —las dos tablas de grano fino, con marca de tiempo, que hoy más se parecen a hechos— en tablas de hechos propiamente dichas, con clave de tiempo. Hoy esa vista no existe porque el módulo no la necesita: existe para escribir y decidir, no para agregar.
+
+### 3.25 · Qué consulta justifica cada índice
+
+| Índice | Consulta que resuelve |
+|---|---|
+| `uq_m01_identificador_valor` (única, `tipo+valor_hmac` con `retirado_en IS NULL`) | **La consulta más caliente del módulo**: dado el documento que teclea alguien al entrar, calcular su HMAC y encontrar la cuenta en O(1) (`AutenticarUsuario`) |
+| `Index(valor_hmac)` en `identificador_usuario` | Búsquedas administrativas por identificador sin conocer el tipo exacto («¿este documento ya está registrado, con cualquier tipo?») |
+| `Index(telefono_hmac)` en `persona` | Ubicar a una persona por teléfono para recuperación o para detectar duplicados, sin poder leer el teléfono en claro |
+| `uq_m01_credencial_activa` (única, `usuario` con `activa=True`) | «Tráeme la credencial vigente de este usuario» al validar el secreto, sin escanear el historial completo |
+| `Index(usuario, revocado_en)` en `usuario_rol` | «¿Qué roles vigentes tiene esta persona ahora?» — se ejecuta en cada inicio de sesión y en cada resolución de menú (`ResolverPrincipal`) |
+| `Index(usuario, papel)` en `miembro_grupo` | «¿En qué grupos es DOCENTE esta persona?» — la evalúa `PoliticaAutorizacion` en **cada** decisión de alcance `ASSIGNED_GROUPS`/`LEVEL` (§5.2): la consulta de más volumen del módulo tras el login |
+| `Index(organizacion, estado)` en `usuario` | Listar usuarios activos de una instalación (paneles de administración, `ListarUsuarios`) |
+| `Index(rol)` en `usuario` | «¿Cuántas cuentas usan este rol como principal?» antes de editarlo o retirarlo |
+| `Index(vinculado_a)` en `usuario` | Reconstruir qué cuentas provisionales terminaron fusionadas en una cuenta definitiva (JRN-007) |
+| `Index(usuario, revocada_en, expira_en)` en `sesion` | «¿Tiene ya una sesión vigente esta persona?» al abrir sesión (INV-011) y el barrido que expira sesiones inactivas |
+| `Index(usuario, expira_en)` en `autorizacion_temporal` | Autorizaciones temporales vigentes de una persona, para no emitir dos pases de emergencia superpuestos |
+| `Index(usuario, -momento)` en `intento_acceso` | FUN-007: contar los intentos fallidos recientes de una persona, en orden descendente, para decidir el bloqueo por ventana de tiempo |
+| `Index(autorizacion)` en `intento_acceso` | Todos los intentos que usaron un pase temporal concreto, para auditoría del acceso a examen |
+| `Index(publicado_en, creado_en)` en `evento_salida` | La consulta del relevo del outbox: «eventos aún no publicados, en el orden en que ocurrieron» |
+
+Cada índice explícito del modelo corresponde a una consulta que se ejecuta en el camino crítico de una regla de negocio ya citada (BR/FUN); ninguno es especulativo.
+
+### 3.26 · Linaje de datos: de dónde viene cada dato y cuál es la fuente de verdad
+
+| Dato | Fuente de verdad | Cómo llega |
+|---|---|---|
+| Identidad, credenciales, roles, sesiones | **Este módulo**, y sólo él | No hay directorio externo (sin LDAP, sin IdP): `acceso` es el sistema de registro. El dato nace aquí, tecleado por un administrador o un docente (`CrearUsuario`, `ImportarUsuarios`, FUN-003) |
+| Documento, nombres, teléfono (en claro) | La persona, en el momento de la matrícula | Entra una sola vez a la aplicación; el adaptador de seguridad lo cifra/hashea antes de tocar la base de datos (`infraestructura/seguridad.py`). **El linaje se corta a propósito en la frontera de la aplicación**: no existe columna, respaldo ni caché intermedia con el valor plano |
+| «¿Sigue viva esta sesión?» | **`m01_sesion`**, no el JWT | El token es autocontenido y se verifica sin red, pero sólo **afirma** quién lo emitió; la verdad de si ya fue revocado vive exclusivamente en la fila (`revocada_en`). El JWT es una copia portátil de un hecho cuyo original está en la base de datos |
+| `usuario.id` usado como `persona_id` en `expediente` y `classroom_engine` | **`acceso`** es el módulo de origen | La referencia es lógica (texto), no una FK física entre apps (Q-52), pero el linaje es real: ese identificador nace aquí y ningún otro módulo lo genera ni lo reescribe |
+| Eventos `identidad.*.v1` | El hecho de negocio que los originó, en la misma transacción | `m01_evento_salida` no es una fuente de verdad adicional: es la copia de propagación de un hecho ya escrito en `m01_*`, para que otros módulos (hoy ninguno; mañana MOD-015) lo consuman sin leer directamente estas tablas |
+
+En síntesis: `acceso` nunca es espejo de otro sistema — es cabecera de linaje para la identidad de toda la instalación, incluida la que reutilizan `expediente` y `classroom_engine`.
+
+### 3.27 · Conclusión: cómo el modelo resuelve el dominio de acceso
+
+El módulo tiene que contestar, sin red y en milisegundos, tres preguntas que se repiten miles de veces al día en un aula: *¿quién es*, *qué puede hacer* y *ya pasó esto antes*. El diseño relacional resuelve cada una con el mecanismo mínimo suficiente: la identidad se parte en cuenta + persona cifrada + identificadores externos para poder mostrar, buscar y proteger a la vez (§3.20, §3.22); la autorización se resuelve con cuatro tablas (`rol`, `permiso`, `rol_permiso`, `usuario_rol`) en vez de una tabla de permisos por contexto que crecería sin límite (§2.2) — el alcance vive como **atributo de la relación**, no como fila nueva por combinación posible; y lo que ya ocurrió (intentos, eventos) se guarda append-only con índices pensados para las dos preguntas que de verdad se hacen sobre esa evidencia: «¿debo bloquear?» y «¿qué falta por publicar?». La 3FN no es un ejercicio académico aquí: es lo que permite que renombrar un colegio, rotar una contraseña o revocar un rol sea escribir **una fila**, nunca corregir el mismo dato en varios lugares — una propiedad indispensable en un nodo que nadie va a estar reparando a mano.
+
 ---
 
 ## 4 · Protección de la información
