@@ -493,6 +493,7 @@ La observación que vale la pena resaltar: al menos tres de estos índices (`ix_
 | Nota, intento, corrección | **Fuera de alcance** (MOD-010/`expediente m10_*`) | MOD-007 sólo pide `preparar_asignacion`/`intentos_abiertos` por el puerto `Evaluacion`; no guarda ni un puntaje |
 | Marca de tiempo de cada `*_en` | El reloj del nodo, por el puerto `Reloj` (BR-062) | Nunca el reloj del cliente: cada respuesta añade `servidor_en` para que la tableta se alinee, en vez de que el dispositivo dicte cuándo pasó algo |
 | Eventos `aula.*.v1` | El hecho ya escrito en `m07_*`, en la misma transacción | `m07_evento_salida` es el mecanismo de propagación, no una fuente adicional — igual que en `acceso` (§3.26 de ese documento) |
+| Asientos de auditoría (`aula.*`) | **`m19_auditoria`**, alojada en el app `expediente` (MOD-019) | Por el puerto `Auditoria` → adaptador `AuditoriaExpediente`, en la misma transacción que el hecho. Es un sumidero append-only **compartido** por los tres módulos del backend; por eso un esquema con sólo las `m07_*` (o sólo `m01_*` + `m07_*`) no incluye su propia auditoría |
 
 En síntesis, `classroom_engine` es intencionalmente el módulo con **menos fuentes de verdad propias** de los tres del backend: posee un único tipo de dato genuino (la sesión de clase y lo que ocurre en ella) y para todo lo demás actúa como consumidor disciplinado de otros dueños — exactamente lo que exige la regla de oro del artículo 14.
 

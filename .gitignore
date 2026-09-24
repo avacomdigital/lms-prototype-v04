@@ -95,3 +95,5 @@ installer/build/PruebaAsistente.exe
 
 # Presentaciones y discusiones privadas con el CTO
 /specs/presentaciones/
+# Analisis de diseño en curso con el CTO (modelo de datos, diagramas, HTML)
+/specs/analisis/
